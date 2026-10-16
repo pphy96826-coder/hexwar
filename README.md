@@ -2,7 +2,8 @@
 
 一个两人对战的六边形格子策略游戏，以及一个从零开始、靠自我对弈训练出来的 AI「宗师」。
 
-- **游戏**：单个 HTML 文件，用浏览器打开 `hexwar.html`（或 `index.html`）就能玩，不需要安装任何东西。
+- **在线试玩**：<https://pphy96826-coder.github.io/hexwar/>（Chrome / Edge / Safari 18+，宗师需要浏览器支持 WebGPU）
+- **游戏**：单个 HTML 文件，下载后用浏览器打开 `hexwar.html`（或 `index.html`）也能玩，不需要安装任何东西。
 - **AI**：AlphaZero 式训练（神经网络 + 蒙特卡洛树搜索 + 自我对弈），网络在浏览器里用 WebGPU 运行，你思考时它也在后台思考。
 - 讲解视频：[`video/hexwar_explainer.mp4`](video/hexwar_explainer.mp4)（规则 + AI 是怎么训练出来的）
 
