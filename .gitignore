@@ -1,0 +1,10 @@
+# training output (checkpoints, logs, replay buffer: gigabytes)
+train/az/out/
+train/az/out_smoke/
+*.pkl
+__pycache__/
+.DS_Store
+# built by export_web.py for local testing
+train/az/web/net.bin
+train/az/web/net.bin.json
+train/az/web/net_best.*

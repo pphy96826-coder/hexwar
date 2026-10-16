@@ -1,0 +1,23 @@
+<!doctype html><meta charset=utf8><title>nn gpu test</title><body style="font:14px monospace;white-space:pre"><div id=o>running...</div>
+<script src="nn.js"></script>
+<script>
+const out=s=>document.getElementById('o').textContent+='\n'+s;
+(async()=>{
+  try{
+    const buf=await (await fetch('net.bin')).arrayBuffer(), R=await (await fetch('net.bin.json')).json();
+    const W=HexNN.parse(buf); const g=await HexNN.gpu(W);
+    if(!g){out('NO WEBGPU');return;}
+    out('adapter '+JSON.stringify(g.adapter.vendor||'')+' '+(g.adapter.architecture||''));
+    const r=await g.forward(Uint8Array.from(R.x),2,R.H,R.W);
+    let md=0; for(let i=0;i<R.lg.length;i++) md=Math.max(md,Math.abs(R.lg[i]-r.lg[i]));
+    out('v '+Array.from(r.v)+' ref '+R.v+'\ne '+Array.from(r.e)+' ref '+R.e+'\nmax logit diff '+md);
+    for(const B of [16,64,128,256]){
+      const H=12,Wd=13, x=new Uint8Array(B*87*H*Wd); for(let i=0;i<x.length;i++) x[i]=Math.random()<0.1?1:0; for(let b=0;b<B;b++) for(let i=0;i<H*Wd;i++) x[b*87*H*Wd+i]=1;
+      await g.forward(x,B,H,Wd); const t=performance.now(); const n=10;
+      for(let i=0;i<n;i++) await g.forward(x,B,H,Wd);
+      const dt=(performance.now()-t)/n; out(`B=${B}: ${dt.toFixed(1)} ms -> ${(B/dt*1000).toFixed(0)} pos/s`);
+    }
+    out('DONE');
+  }catch(e){out('ERR '+e.stack);}
+})();
+</script>

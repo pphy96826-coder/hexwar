@@ -1,0 +1,1795 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>蜂巢兵棋</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700;900&display=swap" rel="stylesheet">
+<style>
+/* layout: a dark war table — hex board on the left, quartermaster panel (info, recruits, battle log) on the right; stacks on phones */
+:root{
+  --bg:#11141b; --panel:#181c26; --panel2:#1f2431; --line:#2c3243; --fg:#e9e4d6; --muted:#8f94a4; --ink:#12151c;
+  --p0:#5cc6b6; --p0d:#1c4842; --p1:#e6a54f; --p1d:#553a19; --danger:#ec5b50; --gold:#e8c46b; --good:#8fd18a;
+  --t-plain:#252a39; --t-forest:#1e3a2b; --t-hill:#3c3424; --t-river:#16344d; --t-bridge:#463826; --t-rock:#0a0c11;
+  --f-display:"Noto Serif SC","Songti SC","STSong",serif;
+  --f-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55;padding-inline:16px}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.app{max-width:1240px;margin:0 auto;padding-block:14px 40px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 20px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.brand h1{font-family:var(--f-display);font-weight:900;font-size:30px;letter-spacing:.12em;margin:0;line-height:1.1}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:13px;letter-spacing:.04em}
+.hdr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:500;transition:background .15s,border-color .15s}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--gold);color:var(--ink);border-color:var(--gold);font-weight:700}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08)}
+.btn.ghost{background:transparent}
+.phase{margin-top:12px;font-family:var(--f-display);font-weight:700;font-size:18px;letter-spacing:.05em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.phase .who{padding:1px 10px;border-radius:999px;font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--ink)}
+.phase .who.p0{background:var(--p0)} .phase .who.p1{background:var(--p1)}
+.phase .hint{font-family:var(--f-body);font-weight:400;font-size:13px;color:var(--muted);letter-spacing:0}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;margin-top:12px;align-items:start}
+@media (max-width:920px){.layout{grid-template-columns:minmax(0,1fr)}}
+.board-col{min-width:0;display:flex;flex-direction:column;gap:10px}
+.players{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;transition:border-color .2s,box-shadow .2s}
+.pc.active.p0{border-color:var(--p0);box-shadow:0 0 0 1px var(--p0) inset}
+.pc.active.p1{border-color:var(--p1);box-shadow:0 0 0 1px var(--p1) inset}
+.pc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pc-head b{font-family:var(--f-display);font-size:16px;letter-spacing:.06em}
+.dot{width:12px;height:12px;border-radius:50%}
+.p0 .dot{background:var(--p0)} .p1 .dot{background:var(--p1)}
+.tag{font-size:11px;padding:0 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);letter-spacing:.06em}
+.hpbar{position:relative;height:18px;border-radius:5px;background:var(--panel2);overflow:hidden}
+.hpbar i{position:absolute;inset:0 auto 0 0;display:block;transition:width .5s}
+.p0 .hpbar i{background:var(--p0d)} .p1 .hpbar i{background:var(--p1d)}
+.hpbar span{position:relative;display:block;text-align:center;font-size:12px;font-weight:700;line-height:18px;font-variant-numeric:tabular-nums}
+.bank{display:flex;align-items:center;gap:8px}
+.pips{display:flex;gap:3px;flex-wrap:wrap}
+.pips i{width:10px;height:10px;transform:rotate(45deg);border:1px solid var(--line);background:transparent}
+.pips i.on{background:var(--gold);border-color:var(--gold)}
+.bank b{font-variant-numeric:tabular-nums;font-size:15px}
+.pc .sub{font-size:12px;color:var(--muted)}
+.board-wrap{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;overflow:hidden}
+.caption{position:absolute;left:50%;top:10px;transform:translateX(-50%);max-width:calc(100% - 24px);padding:6px 16px;border-radius:999px;background:rgba(17,20,27,.9);border:1px solid var(--line);font-weight:700;font-size:14px;text-align:center;pointer-events:none}
+.caption[data-p="0"]{color:var(--p0);border-color:var(--p0)} .caption[data-p="1"]{color:var(--p1);border-color:var(--p1)}
+.speed button{padding:4px 10px}
+.log-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.arrow{fill:none;stroke-width:2.6;stroke-linecap:round;opacity:.9}
+.arrow.p0{stroke:var(--p0)} .arrow.p1{stroke:var(--p1)} .arrow.pb{stroke:var(--gold);stroke-dasharray:5 3}
+.arrow-n{font-size:12px;font-weight:900;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.arrow-n.p0{fill:var(--p0)} .arrow-n.p1{fill:var(--p1)} .arrow-n.pb{fill:var(--gold)}
+.flash{fill:none;stroke:currentColor;stroke-width:4;animation:flash 1s ease-out infinite}
+@keyframes flash{0%{opacity:1;stroke-width:6}100%{opacity:.15;stroke-width:1}}
+.vbar{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;margin:10px 0}
+.vbar i{display:block;height:100%;width:0;background:var(--gold)}
+#video-canvas{width:100%;height:auto;border-radius:8px;border:1px solid var(--line);background:var(--bg)}
+#board{display:block;width:100%;height:auto;max-width:760px;max-height:84vh;margin:0 auto;touch-action:manipulation;font-family:var(--f-body);user-select:none;-webkit-user-select:none}
+.hoverline{min-height:22px;font-size:13px;color:var(--muted)}
+.controls{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.toggles,.acts{display:flex;gap:8px;flex-wrap:wrap}
+.tg{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 12px;cursor:pointer;font-size:13px;color:var(--muted)}
+.tg[aria-pressed="true"]{color:var(--fg);border-color:var(--muted);background:var(--panel2)}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.card h2{font-family:var(--f-display);font-size:16px;letter-spacing:.1em;margin:0}
+.card-h span{color:var(--muted);font-size:12px}
+.shop-group{margin-bottom:10px}
+.shop-group:last-child{margin-bottom:0}
+.sg-h{display:flex;gap:8px;align-items:baseline;font-size:12px;color:var(--muted);margin-bottom:5px;letter-spacing:.04em}
+.sg-h b{color:var(--fg);font-size:13px}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:6px}
+.uc{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center;text-align:left;background:var(--panel2);border:1px solid transparent;border-radius:8px;padding:5px 7px;cursor:pointer;min-width:0}
+.uc:hover{border-color:var(--line)}
+.uc.sel{border-color:var(--gold);background:#2a2a2a}
+.uc.poor{opacity:.45}
+.uc-tok{grid-row:1/3;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-weight:900;font-size:15px;color:var(--ink)}
+.uc-tok.p0{background:var(--p0)} .uc-tok.p1{background:var(--p1)}
+.uc-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.uc-meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.uc-meta b{color:var(--gold);font-weight:700}
+.info{min-height:170px}
+.info h3{font-family:var(--f-display);font-size:20px;margin:0;letter-spacing:.06em}
+.ih{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.ih .uc-tok{width:40px;height:40px;font-size:21px;grid-row:auto}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px}
+.chip{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--fg)}
+.chip.cost{border-color:var(--gold);color:var(--gold)}
+.statrow{display:flex;gap:14px;font-variant-numeric:tabular-nums;margin:6px 0}
+.statrow span{color:var(--muted);font-size:12px}
+.statrow b{font-size:16px;margin-left:3px}
+.rangebox{display:flex;gap:12px;align-items:center;margin:8px 0}
+.rangebox svg{flex:none}
+.rangebox p{margin:0;font-size:12px;color:var(--muted)}
+.info p.desc{margin:6px 0 0;font-size:13px}
+.info .counter{font-size:12px;color:var(--muted);margin-top:6px}
+.pred{margin-top:8px;padding:7px 9px;border-radius:7px;background:var(--panel2);font-size:13px}
+.pred.bad{box-shadow:inset 3px 0 0 var(--danger)}
+.pred.good{box-shadow:inset 3px 0 0 var(--good)}
+.info .empty{color:var(--muted);font-size:13px}
+.info .empty b{color:var(--fg)}
+.log ol{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:3px;font-size:12.5px}
+.log li{padding:3px 0 3px 8px;border-left:2px solid var(--line);color:var(--muted)}
+.log li.s0{border-left-color:var(--p0);color:var(--fg)} .log li.s1{border-left-color:var(--p1);color:var(--fg)}
+.log li.rh{border:none;padding-left:0;font-family:var(--f-display);color:var(--fg);margin-top:6px;letter-spacing:.06em}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* svg */
+.hex{stroke:var(--bg);stroke-width:2.5}
+.t-plain{fill:var(--t-plain)} .t-forest{fill:var(--t-forest)} .t-hill{fill:var(--t-hill)} .t-river{fill:var(--t-river)}
+.t-bridge,.t-mine{fill:var(--t-bridge)} .t-rock{fill:var(--t-rock)}
+.deco{pointer-events:none}
+.p0{color:var(--p0)} .p1{color:var(--p1)}
+.ov-dep{fill:currentColor;fill-opacity:.13;stroke:currentColor;stroke-width:1.6;stroke-dasharray:5 4}
+.ov-cov{fill:currentColor;fill-opacity:.34}
+.ov-aura{fill:none;stroke:currentColor;stroke-width:2;stroke-dasharray:2 4;stroke-opacity:.9}
+.ov-threat{fill:var(--danger);fill-opacity:.15}
+.ov-prev{fill:none;stroke:var(--fg);stroke-width:2.5}
+.fx-cov{fill:currentColor;fill-opacity:.2}
+.threat-n{fill:var(--danger);font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.tok-bg{fill:currentColor;stroke:var(--bg);stroke-width:2}
+.tok-notch{fill:currentColor}
+.tok-g{fill:var(--ink);font-family:var(--f-display);font-weight:900;font-size:22px;text-anchor:middle;dominant-baseline:central}
+.pill circle{stroke:var(--bg);stroke-width:1.5}
+.pill text{font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.pill.hp circle{fill:#b8473f} .pill.hp text{fill:#fff}
+.pill.atk circle{fill:var(--ink)} .pill.atk text{fill:var(--fg)}
+.pill.arm circle{fill:#5d6577} .pill.arm text{fill:#fff}
+.pill.dmg circle{fill:var(--danger)} .pill.dmg text{fill:#fff}
+.tok-ring{fill:none;stroke-width:2}
+.tok-ring.new{stroke:var(--fg);stroke-opacity:.55;stroke-dasharray:3 3}
+.tok-ring.iso{stroke:var(--danger);stroke-dasharray:6 3}
+.tok-x{stroke:var(--danger);stroke-width:4;stroke-linecap:round}
+.ghost{opacity:.62}
+.anim{transform-box:fill-box;transform-origin:center}
+.dying .anim{animation:die .7s ease-in forwards}
+@keyframes die{0%{opacity:1;transform:scale(1)}30%{transform:scale(1.15)}100%{opacity:0;transform:scale(.4)}}
+.dmgf{fill:var(--danger);font-weight:900;font-size:17px;text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px;animation:floatup .9s ease-out forwards}
+@keyframes floatup{from{transform:translateY(6px);opacity:0}25%{opacity:1}to{transform:translateY(-6px);opacity:1}}
+.base-hex{stroke-width:3}
+.base-g{font-family:var(--f-display);font-weight:900;font-size:24px;text-anchor:middle;dominant-baseline:central}
+.base-hp{font-size:12px;font-weight:700;text-anchor:middle;fill:var(--fg)}
+.road{stroke:currentColor;stroke-width:3;stroke-dasharray:4 4;stroke-opacity:.7}
+.rev{fill:none;stroke:var(--muted);stroke-dasharray:3 3}
+.rev-t{fill:var(--muted);font-family:var(--f-display);font-size:15px;text-anchor:middle;dominant-baseline:central}
+.hit{fill:transparent;pointer-events:all;cursor:pointer}
+.mini .m{stroke:var(--panel);stroke-width:1.5;fill:var(--panel2)}
+.mini .m.o{fill:var(--fg)} .mini .m.c{fill:var(--p0)} .mini .m.a{fill:none;stroke:var(--gold);stroke-dasharray:2 2}
+.mini .m.ca{fill:var(--p0);stroke:var(--gold);stroke-dasharray:2 2}
+
+/* overlays */
+.overlay{position:fixed;inset:0;background:rgba(6,8,12,.74);display:grid;place-items:center;padding:16px;z-index:20}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:960px;width:100%;max-height:88vh;overflow:auto;padding:20px 22px}
+.sheet h2{font-family:var(--f-display);font-size:22px;letter-spacing:.08em;margin:0 0 4px}
+.sheet h3{font-family:var(--f-display);font-size:16px;letter-spacing:.06em;margin:18px 0 8px}
+.sheet-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.rules{margin:0;padding-left:20px;display:grid;gap:4px;max-width:70ch}
+.codex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.cx{background:var(--panel2);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:start}
+.cx .mini{grid-row:1/4}
+.cx h4{margin:0;font-family:var(--f-display);font-size:15px;letter-spacing:.04em}
+.cx .cxm{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cx p{margin:0;font-size:12.5px;grid-column:2}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:14px}
+.mode{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer}
+.mode:hover{border-color:var(--gold)}
+.mode b{display:block;font-family:var(--f-display);font-size:17px;margin-bottom:4px}
+.mode span{color:var(--muted);font-size:13px}
+.mode[aria-pressed="true"]{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+.opts{margin-top:16px;display:grid;gap:10px}
+.opt{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.opt>span{min-width:64px;color:var(--muted);font-size:13px}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:none;background:transparent;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--gold);color:var(--ink);font-weight:700}
+.lvl-note{margin:14px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted);display:grid;gap:2px}
+.lvl-note b{color:var(--fg)}
+.row-end{display:flex;justify-content:flex-end;margin-top:16px}
+.over-sheet{max-width:420px;text-align:center}
+.over-sheet .big{font-family:var(--f-display);font-weight:900;font-size:34px;letter-spacing:.1em;margin:6px 0}
+.over-sheet .row{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);padding:14px 30px;border-radius:12px;background:rgba(17,20,27,.92);border:1px solid var(--line);font-family:var(--f-display);font-size:24px;font-weight:900;letter-spacing:.12em;z-index:30;pointer-events:none;animation:toast 1.3s ease forwards}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,-40%)}15%{opacity:1;transform:translate(-50%,-50%)}75%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  .flash{animation:none}
+  .dying .anim,.dmgf,.toast{animation-duration:.01s}
+  .hpbar i{transition:none}
+}
+@media (max-width:520px){
+  .brand h1{font-size:24px}
+  .players{gap:6px}
+  .pc{padding:8px}
+  .pips i{width:8px;height:8px}
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>蜂巢兵棋</h1>
+      <p>沿补给线部署 · 所有攻击同时结算 · 先打掉对方大本营者胜</p>
+    </div>
+    <div class="hdr-actions">
+      <button id="btn-codex" class="btn ghost">规则与兵种图鉴</button>
+      <button id="btn-new" class="btn ghost">新对局</button>
+    </div>
+  </header>
+  <div class="phase" id="phase"></div>
+  <div class="layout">
+    <section class="board-col">
+      <div class="players"><div class="pc p0" id="pc0"></div><div class="pc p1" id="pc1"></div></div>
+      <div class="board-wrap"><svg id="board" role="img" aria-label="六边形战场"></svg><div class="caption" id="caption" hidden></div></div>
+      <div class="hoverline" id="hoverline">把鼠标移到格子上查看地形；点击单位查看射程。</div>
+      <div class="controls">
+        <div class="toggles">
+          <button id="tg-pred" class="tg" aria-pressed="true">预测结算</button>
+          <button id="tg-threat" class="tg" aria-pressed="false">敌方火力</button>
+          <div class="seg speed" id="speed" role="group" aria-label="动画速度"><button data-s="slow" aria-pressed="false">慢</button><button data-s="normal" aria-pressed="true">正常</button><button data-s="fast" aria-pressed="false">快</button></div>
+        </div>
+        <div class="acts">
+          <button id="btn-undo" class="btn">撤销</button>
+          <button id="btn-end" class="btn primary">结束部署</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--t-forest)"></i>森林 血+1，挡直射</span>
+        <span><i style="background:var(--t-hill)"></i>高地 远程攻击+1</span>
+        <span><i style="background:var(--t-river)"></i>河流 不能部署</span>
+        <span><i style="background:var(--t-bridge)"></i>桥 / 矿桥 +1费</span>
+        <span><i style="background:var(--t-rock);border:1px solid var(--line)"></i>岩石 不可进入</span>
+      </div>
+    </section>
+    <aside class="side">
+      <div class="card info" id="info"></div>
+      <div class="card shop">
+        <div class="card-h"><h2>征兵</h2><span id="shop-bank"></span></div>
+        <div id="shop"></div>
+      </div>
+      <div class="card log">
+        <div class="card-h"><h2>战报</h2><div class="log-acts"><button class="tg" id="btn-video" title="把本局从头到现在重新演一遍，录成视频下载">下载回放视频</button><button class="tg" id="btn-copy" title="复制本局所有部署记录，可以粘贴给别人复盘">复制棋谱</button></div></div>
+        <ol id="log"></ol>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="overlay" id="ov-codex" hidden>
+  <div class="sheet">
+    <div class="sheet-h"><h2>规则与兵种图鉴</h2><button class="btn" data-close="ov-codex">关闭</button></div>
+    <h3>回合流程</h3>
+    <ol class="rules">
+      <li>每回合开始，双方获得费用：第1–3回合 3 费，第4–7回合 4 费，第8回合起 5 费。占领一座矿桥每回合额外 +1。费用可以存，上限 10。</li>
+      <li>先手方先部署，后手方看到之后再部署。先手每回合轮换。</li>
+      <li>只能部署在与<b>连通区域</b>相邻的空格。连通区域 = 从本方大本营出发，经由本方单位（和工兵留下的道路）相连的格子。刚放下的单位马上就能当作新的落脚点。另外，<b>本方大本营周围 2 格内的空格永远可以部署</b>，大本营不会被围死。</li>
+      <li>双方都结束部署后统一结算。所有单位<b>同时</b>出手：一个单位受到的伤害等于所有覆盖它的敌方单位造成的伤害之和，<b>伤害 ≥ 血量</b>就阵亡。双方可以同归于尽。伤害不会留到下回合。</li>
+      <li>单次伤害 = 攻击 + 克制加成(+1) − 目标护甲（穿透无视护甲），最低为 0。</li>
+      <li>克制：<b>突击 → 远程 → 重装 → 突击</b>。奇术不参与克制。</li>
+      <li>大本营有 20 血，每回合对相邻敌人造成 2 点伤害。大本营每累计损失 5 血，立刻获得 2 费（怒气）。</li>
+      <li>与大本营断开连通的单位进入<b>孤立</b>状态：攻击 −1，也不能作为部署落脚点。</li>
+      <li>所有射程以朝向敌方大本营为前方。从第 15 回合起进入决战，所有单位攻击 +1。</li>
+      <li>大本营血量归零即失败。双方同时归零时，场上单位总费用高的一方获胜。</li>
+    </ol>
+    <h3>地形</h3>
+    <ol class="rules" style="list-style:none;padding-left:0">
+      <li><b>森林</b>：站在上面的单位血 +1；直射打到森林就停。</li>
+      <li><b>高地</b>：站在上面的远程单位攻击 +1。</li>
+      <li><b>河流</b>：不能部署（工兵和巨龙除外），不挡射程。有河的地图只能走桥过河。</li>
+      <li><b>矿桥</b>：左右两座桥，有本方单位站在上面时每回合 +1 费。</li>
+      <li><b>岩石</b>：不能进入，挡住直射。</li>
+    </ol>
+    <h3>兵种（射程图上方 = 前方，白色 = 自身，彩色 = 攻击范围，虚线 = 光环 / 爆炸 / 部署范围）</h3>
+    <div class="codex-grid" id="codex"></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov-new" hidden>
+  <div class="sheet" style="max-width:640px">
+    <div class="sheet-h"><h2>新对局</h2><button class="btn" data-close="ov-new">取消</button></div>
+    <div class="modes">
+      <button class="mode" data-mode="ai" aria-pressed="true"><b>对战电脑</b><span>选择执哪一方和电脑难度。</span></button>
+      <button class="mode" data-mode="hotseat" aria-pressed="false"><b>双人同屏</b><span>两个人在同一台设备上轮流部署。</span></button>
+      <button class="mode" data-mode="watch" aria-pressed="false"><b>观战</b><span>看两个电脑互相对打。</span></button>
+    </div>
+    <div class="opts">
+      <div class="opt"><span>地图</span><div class="seg" data-opt="map"><button data-v="valley" aria-pressed="true">河谷</button><button data-v="plateau" aria-pressed="false">高原</button><button data-v="canyon" aria-pressed="false">峡谷</button><button data-v="random" aria-pressed="false">随机生成</button></div></div>
+      <p class="lvl-note" id="map-desc"></p>
+    </div>
+    <div class="opts" id="opt-ai">
+      <div class="opt"><span>你执</span><div class="seg" data-opt="side"><button data-v="0" aria-pressed="true">青方（第1回合先手）</button><button data-v="1" aria-pressed="false">赭方</button></div></div>
+      <div class="opt"><span>电脑难度</span><div class="seg" data-opt="lvl"><button data-v="easy" aria-pressed="false">简单</button><button data-v="normal" aria-pressed="false">普通</button><button data-v="hard" aria-pressed="true">困难</button><button data-v="master" aria-pressed="false">大师</button></div></div>
+    </div>
+    <div class="opts" id="opt-watch" hidden>
+      <div class="opt"><span>青方电脑</span><div class="seg" data-opt="w0"><button data-v="easy" aria-pressed="false">简单</button><button data-v="normal" aria-pressed="false">普通</button><button data-v="hard" aria-pressed="true">困难</button><button data-v="master" aria-pressed="false">大师</button></div></div>
+      <div class="opt"><span>赭方电脑</span><div class="seg" data-opt="w1"><button data-v="easy" aria-pressed="false">简单</button><button data-v="normal" aria-pressed="true">普通</button><button data-v="hard" aria-pressed="false">困难</button><button data-v="master" aria-pressed="false">大师</button></div></div>
+    </div>
+    <ul class="lvl-note">
+      <li><b>简单</b>：只看这一回合，带较大随机性。</li>
+      <li><b>普通</b>：会多看一回合，并预判你的回应后挑最稳的部署方案。</li>
+      <li><b>困难</b>：会算你下回合用手上的费最多能对它大本营打多少伤害、最便宜能打死它哪些兵，抢先堵住你想要的格子，也会凑多个兵围杀龙这类高威胁单位；选方案前会往后推演 1 个回合。</li>
+      <li><b>大师</b>：把双方接下来两个回合的多种走法展开成一棵搜索树（我方几种方案 → 你的几种回应 → 我方再应对……），把思考时间集中在最有希望的分支上，选最稳的一手。每步思考约 4 秒。</li>
+    </ul>
+    <div class="row-end"><button class="btn primary" id="btn-start">开始对局</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov-over" hidden>
+  <div class="sheet over-sheet">
+    <div id="over-body"></div>
+    <div class="row">
+      <button class="btn" data-close="ov-over">查看战场</button>
+      <button class="btn" id="btn-video2">下载回放视频</button>
+      <button class="btn primary" id="btn-again">再来一局</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="overlay" id="ov-video" hidden>
+  <div class="sheet over-sheet">
+    <h2>生成回放视频</h2>
+    <p id="video-msg">正在从第 1 回合重新演一遍这局并录制，请保持这个页面在前台。</p>
+    <div class="vbar"><i id="video-bar"></i></div>
+    <canvas id="video-canvas" width="1280" height="720"></canvas>
+    <div class="row"><button class="btn" id="btn-video-cancel">取消</button></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+
+/* ---------- board geometry: flat-top hexes, doubled-height coords (c, r), c+r even ---------- */
+const S=40, HH=Math.sqrt(3)*S, PAD=8;
+const cxp=c=>PAD+S+c*1.5*S, cyp=r=>PAD+r*HH/2;
+// maps: every map is point-symmetric, so (c,r) on one side mirrors to (cols-1-c, rows+1-r) on the other.
+// Terrain lists give one side only. Bases sit inside the board so each has six neighbouring cells.
+const MAPS=[
+  {id:'valley',name:'河谷',desc:'经典三路：一条河、三座桥，左右两座矿桥。',cols:11,rows:21,base:[5,19],
+   t:{river:[[0,10],[2,10],[4,10],[3,11]],bridge:[[5,11]],mine:[[1,11]],forest:[[3,15],[8,14]],hill:[[6,14]],rock:[[4,14]]}},
+  {id:'plateau',name:'高原',desc:'没有河，地图更宽；中央高地和几块岩石把战场切成多条小路。',cols:13,rows:21,base:[6,18],
+   t:{hill:[[6,12],[3,13]],rock:[[4,12],[2,14],[8,14]],forest:[[5,15],[9,15]],mine:[[1,11]]}},
+  {id:'canyon',name:'峡谷',desc:'狭长战场，中间只有一座独桥，两道岩壁卡住要道。',cols:9,rows:23,base:[4,20],
+   t:{river:[[2,12],[1,11],[3,11]],bridge:[[4,12]],mine:[[0,12]],rock:[[1,15],[2,16],[6,16],[7,15]],forest:[[2,18]],hill:[[6,14]]}},
+];
+let MAP=MAPS[0], COLS=11, ROWS=21, VBW=0, VBH=0;
+const exists=(c,r)=>c>=0&&c<COLS&&(c%2===1?(r>=1&&r<=ROWS&&r%2===1):(r>=2&&r<=ROWS-1&&r%2===0));
+const K=(c,r)=>exists(c,r)?c*100+r:-1;
+const KC=k=>Math.floor(k/100), KR=k=>k%100;
+const hd=(c1,r1,c2,r2)=>{const dc=Math.abs(c1-c2),dr=Math.abs(r1-r2);return dc+Math.max(0,(dr-dc)/2);};
+const distK=(a,b)=>hd(KC(a),KR(a),KC(b),KR(b));
+const DIRS=[[0,-2],[1,-1],[1,1],[0,2],[-1,1],[-1,-1]];
+
+// per-map tables, refilled in place by loadMap()
+const CELLS=[], CELLSET=new Set(), BASE=[0,0], T={}, NB1=new Map(), NB2=new Map();
+const ADV=[new Map(),new Map()];   // ADV[p]: how far a cell is along the way to the enemy base (0 at home, 1 at their base)
+const TER=k=>T[k]||'plain';
+// random maps: point-symmetric like the fixed ones, so both sides get exactly the same terrain.
+// Same algorithm as the training generator (train/az/maps.js); seeded, so 'rand<seed>' always gives the same map.
+function randomMap(seed){
+  seed=seed==null?Math.floor(Math.random()*1e9):seed;
+  let a=seed>>>0; const rnd=()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};
+  const pick=x=>x[Math.floor(rnd()*x.length)];
+  const ex=(C,R,c,r)=>c>=0&&c<C&&(c%2===1?(r>=1&&r<=R&&r%2===1):(r>=2&&r<=R-1&&r%2===0));
+  for(let attempt=0;attempt<300;attempt++){
+    const C=pick([9,11,13,15]), R=pick([19,21,23,25]), mir=(c,r)=>[C-1-c,R+1-r], cc=(C-1)/2;
+    const bc=cc+pick([0,0,0,-1,1]), br=bc%2===1?R-2:R-3;
+    if(!ex(C,R,bc,br)) continue;
+    const T=new Map(), key=(c,r)=>c*100+r;
+    const set=(c,r,t)=>{if(!ex(C,R,c,r))return false;T.set(key(c,r),t);T.set(key(...mir(c,r)),t);return true;};
+    const [b2c,b2r]=mir(bc,br), nearBase=(c,r)=>hd(c,r,bc,br)<=2||hd(c,r,b2c,b2r)<=2, mid=(R+1)/2;
+    if(rnd()<0.5){   // a zig-zag river across the middle with 1-3 crossings
+      const rc=[]; let r=mid;
+      for(let c=0;c<=cc;c++){
+        const want=c%2===1?1:0, opts=[r-1,r+1,r].filter(x=>Math.abs(x-mid)<=2&&(x%2===want)&&ex(C,R,c,x));
+        if(c>0){const adj=opts.filter(x=>Math.abs(x-rc[c-1])===1); r=pick(adj.length?adj:opts);} else r=pick(opts.length?opts:[mid]);
+        rc.push(r);
+      }
+      const river=[]; for(let c=0;c<cc;c++) river.push([c,rc[c]]);
+      river.push(cc%2===mid%2?[cc,mid]:[cc,mid-1]);
+      for(const [c,r] of river) set(c,r,'river');
+      const nb=1+Math.floor(rnd()*3);
+      for(let i=0;i<nb;i++){const [c,r]=pick(river);set(c,r,rnd()<0.45?'mine':'bridge');}
+    }
+    const cells=[]; for(let c=0;c<C;c++) for(let r=mid+1;r<=R;r++) if(ex(C,R,c,r)) cells.push([c,r]);
+    const free=([c,r])=>!T.has(key(c,r))&&!nearBase(c,r);
+    const walls=Math.floor(rnd()*4);
+    for(let w=0;w<walls;w++){let [c,r]=pick(cells); const d=pick(DIRS), len=2+Math.floor(rnd()*2);
+      for(let i=0;i<len;i++){ if(free([c,r])) set(c,r,'rock'); c+=d[0]; r+=d[1]; }}
+    for(const [t,n] of [['forest',1+Math.floor(rnd()*3)],['hill',Math.floor(rnd()*3)],['mine',Math.floor(rnd()*2)]])
+      for(let i=0;i<n;i++){const x=pick(cells);if(free(x))set(x[0],x[1],t);}
+    const blocked=(c,r)=>{const t=T.get(key(c,r));return t==='rock'||t==='river';};
+    const nbs=(c,r)=>DIRS.map(([x,y])=>[c+x,r+y]).filter(([x,y])=>ex(C,R,x,y));
+    if(nbs(bc,br).length!==6||nbs(bc,br).some(([x,y])=>blocked(x,y))||T.has(key(bc,br))) continue;
+    const seen=new Set([key(bc,br)]), q=[[bc,br]];
+    while(q.length){const [c,r]=q.pop();for(const [x,y] of nbs(c,r)){const k=key(x,y);if(seen.has(k)||blocked(x,y))continue;seen.add(k);q.push([x,y]);}}
+    if(!seen.has(key(b2c,b2r))) continue;
+    const t={}, done=new Set();
+    for(const [k,v] of T){ if(done.has(k)) continue; const c=Math.floor(k/100), r=k%100, m=key(...mir(c,r)); done.add(k); done.add(m); (t[v]=t[v]||[]).push([c,r]); }
+    const has=x=>t[x]?t[x].length:0;
+    const desc=`${C}×${(R+1)/2} 格`+(has('river')?`，一条河、${has('bridge')+has('mine')} 处渡口`:'，没有河')+(has('rock')?'，有岩壁':'')+'。';
+    return {id:'rand'+seed,name:'随机 #'+seed,desc,cols:C,rows:R,base:[bc,br],t};
+  }
+  return MAPS[0];
+}
+function loadMap(id){   // a map id, or a full map object (the training scripts use generated maps)
+  MAP=typeof id==='object'&&id?id:(MAPS.find(m=>m.id===id)||MAPS[0]); COLS=MAP.cols; ROWS=MAP.rows;
+  VBW=PAD*2+(COLS-1)*1.5*S+2*S; VBH=PAD*2+(ROWS+1)/2*HH;
+  CELLS.length=0; CELLSET.clear();
+  for(let c=0;c<COLS;c++) for(let r=1;r<=ROWS;r++) if(exists(c,r)){CELLS.push({c,r,k:c*100+r});CELLSET.add(c*100+r);}
+  const mir=(c,r)=>[COLS-1-c,ROWS+1-r];
+  BASE[0]=K(...MAP.base); BASE[1]=K(...mir(...MAP.base));   // player 0 (青) bottom, player 1 (赭) top
+  for(const k in T) delete T[k];
+  for(const [t,list] of Object.entries(MAP.t)) for(const [c,r] of list){T[K(c,r)]=t;T[K(...mir(c,r))]=t;}
+  NB1.clear(); NB2.clear();
+  for(const a of CELLS){const n1=[],n2=[];for(const b of CELLS){if(a.k===b.k)continue;const d=hd(a.c,a.r,b.c,b.r);if(d===1)n1.push(b.k);if(d<=2)n2.push(b.k);}NB1.set(a.k,n1);NB2.set(a.k,n2);}
+  const bd=distK(BASE[0],BASE[1]);
+  for(const p of [0,1]){ADV[p].clear();for(const c of CELLS)ADV[p].set(c.k,1-distK(c.k,BASE[1-p])/bd);}
+  CC.clear(); buildAITables();
+}
+
+/* ---------- rules data ---------- */
+const FINALE=15, BANK_CAP=10, BASE_HP=20, BASE_AURA=2;
+const income=r=>r<=3?3:(r<=7?4:5);
+const NAMES=['青方','赭方'];
+const CLS={A:{n:'突击',sym:'▲',beat:'远程',by:'重装'},H:{n:'重装',sym:'■',beat:'突击',by:'远程'},R:{n:'远程',sym:'●',beat:'重装',by:'突击'},M:{n:'奇术',sym:'◆'}};
+const BEATS={A:'R',R:'H',H:'A'};
+const SH={
+  F1:{cells:[[0,-2]],label:'前方 1 格'},
+  FAN:{cells:[[0,-2],[1,-1],[-1,-1]],label:'前方扇形 3 格'},
+  PIERCE:{cells:[[0,-2],[0,-4]],label:'贯穿前方 2 格'},
+  RING:{cells:DIRS,label:'周围 6 格'},
+  LOB:{cells:[[0,-4],[0,-6]],label:'抛射：前方第 2、3 格，不受阻挡'},
+  SNIPE:{line:[0,-2],len:4,label:'直射：前方 4 格，碰到第一个单位、森林或岩石就停'},
+  JUMP:{cells:[[1,-3],[-1,-3]],label:'跳击：前方斜两步的 2 格'},
+  TRI:{cells:[[0,-2],[0,-4],[1,-1],[2,-2],[-1,-1],[-2,-2]],label:'三叉：三个前方方向各 2 格'},
+  FAR:{cells:[[0,-4],[0,-6],[0,-8],[0,-10]],label:'远眺：前方第 2~5 格'},
+  CATA:{cells:[[0,-6],[0,-4],[0,-8],[1,-5],[1,-7],[-1,-5],[-1,-7]],label:'投石：以前方第 3 格为中心的 7 格'},
+  BREATH:{cells:[[-1,-3],[0,-4],[1,-3],[-1,-5],[0,-6],[1,-5]],label:'龙息：前方第 2、3 层共 6 格'},
+};
+const U={
+  militia:{n:'民兵',g:'民',cls:'A',cost:1,hp:2,atk:1,sh:'F1',d:'最便宜的连通节点，用来铺路和补线。'},
+  sword:{n:'剑士',g:'剑',cls:'A',cost:2,hp:3,atk:2,sh:'FAN',d:'前排主力，一次压住前方三格。'},
+  cav:{n:'骑兵',g:'骑',cls:'A',cost:3,hp:3,atk:2,sh:'PIERCE',dash:1,kw:['突进'],d:'突进：可以部署在离连通区域 2 格以内的空格，越过一格突袭后排。'},
+  assassin:{n:'刺客',g:'刺',cls:'A',cost:3,hp:1,atk:3,sh:'JUMP',stealth:1,kw:['潜行'],d:'潜行：只会被相邻的敌人伤害，远程打不到它；但任何贴身单位都能秒掉它。'},
+  berserk:{n:'狂战士',g:'狂',cls:'A',cost:4,hp:4,atk:2,sh:'RING',rage:1,kw:['血怒'],d:'血怒：每有一个相邻敌方单位，攻击 +1（最多 +2）。冲进敌群越打越强。'},
+  shield:{n:'盾兵',g:'盾',cls:'H',cost:2,hp:4,atk:1,armor:1,sh:'F1',kw:['护甲1'],d:'便宜的墙。护甲让一堆低攻单位很难磨死它。'},
+  spear:{n:'长枪兵',g:'枪',cls:'H',cost:2,hp:3,atk:2,sh:'PIERCE',d:'贯穿前方两格，专门对付冲上来的突击单位。'},
+  thorn:{n:'荆棘卫',g:'棘',cls:'H',cost:3,hp:4,atk:0,thorns:1,kw:['反伤'],d:'反伤：每个对它造成伤害的敌方单位受到 1 点穿透伤害。越多人打它越亏。'},
+  guard:{n:'守护者',g:'守',cls:'H',cost:4,hp:5,atk:1,armor:1,sh:'RING',aura:'armor',kw:['护甲1','守护'],d:'守护：周围友军护甲 +1（不叠加）。阵地核心。'},
+  ram:{n:'攻城锤',g:'锤',cls:'H',cost:5,hp:5,atk:4,armor:1,sh:'RING',onlyBase:1,kw:['护甲1','攻城'],d:'只攻击大本营。贴着敌方大本营时每回合造成 4 点伤害。'},
+  archer:{n:'弓手',g:'弓',cls:'R',cost:2,hp:1,atk:2,sh:'LOB',d:'便宜的远程火力，越过第一格抛射。一碰就死。'},
+  xbow:{n:'弩手',g:'弩',cls:'R',cost:3,hp:2,atk:3,sh:'SNIPE',pierce:1,kw:['穿透','直射'],d:'穿透：无视护甲。直射会被路线上的第一个单位、森林或岩石挡住。'},
+  ranger:{n:'游侠',g:'侠',cls:'R',cost:3,hp:2,atk:1,sh:'FAR',mark:1,kw:['标记'],d:'标记：它覆盖到的敌方单位护甲 −1，为友军破甲。打得很远。'},
+  catapult:{n:'投石车',g:'石',cls:'R',cost:4,hp:2,atk:2,sh:'CATA',siege:2,setup:1,kw:['攻城×2','架设'],d:'架设：部署当回合不攻击。对大本营伤害翻倍，专打扎堆。'},
+  barrel:{n:'火药桶',g:'药',cls:'M',cost:1,hp:1,atk:0,boom:3,kw:['殉爆','引信'],d:'殉爆：死亡时对周围 6 格所有单位（含友军）造成 3 点穿透伤害，可以连锁。引信：不能部署在敌方当前攻击范围内（包括敌方大本营旁），只能提前埋成陷阱，等敌人自己把射程盖过来。火药桶不算补给线，不能当部署落脚点。'},
+  engineer:{n:'工兵',g:'工',cls:'M',cost:1,hp:2,atk:0,river:1,kw:['架桥','筑路'],d:'可以部署在河流上。死后原地留下道路，道路仍算本方连通。'},
+  banner:{n:'旗手',g:'旗',cls:'M',cost:2,hp:2,atk:0,aura:'deploy',kw:['前哨'],d:'前哨：已连通的旗手周围 2 格内的空格都可以部署。'},
+  skeleton:{n:'骷髅兵',g:'骨',cls:'M',cost:2,hp:1,atk:2,sh:'F1',revive:1,kw:['重生'],d:'重生：第一次死亡后，下回合开始时如果原格空着就原地复活。'},
+  drummer:{n:'战鼓手',g:'鼓',cls:'M',cost:3,hp:2,atk:0,aura:'atk',kw:['激昂'],d:'激昂：周围友军攻击 +1（不叠加，对攻击为 0 的单位无效）。'},
+  priest:{n:'牧师',g:'牧',cls:'M',cost:3,hp:2,atk:0,aura:'hp',kw:['祝福'],d:'祝福：周围友军血量 +1（不叠加）。往往刚好多扛一下。'},
+  mage:{n:'法师',g:'法',cls:'M',cost:4,hp:2,atk:2,sh:'TRI',pierce:1,kw:['穿透'],d:'沿三个前方方向各打 2 格，无视护甲。'},
+  para:{n:'伞兵',g:'伞',cls:'M',cost:4,hp:2,atk:2,sh:'RING',drop:1,setup:1,kw:['空降','架设'],d:'空降：可以部署在任意空地（离敌方大本营 3 格以上），不受孤立影响。落地当回合不攻击，下回合起用来切断补给线、偷袭后排。'},
+  dragon:{n:'巨龙',g:'龙',cls:'M',cost:8,hp:6,atk:3,armor:1,sh:'BREATH',fly:1,unique:1,kw:['护甲1','飞行','唯一'],d:'可以部署在河流上，不吃森林加成，每方场上限 1 只。贴身单位能打到它，它却打不到贴身单位。'},
+};
+const TYPES=Object.keys(U);
+const TIDX={}; TYPES.forEach((t,i)=>TIDX[t]=i);
+const TDESC={plain:'平地',forest:'森林：单位血 +1，挡住直射',hill:'高地：远程单位攻击 +1',river:'河流：不能部署（工兵、巨龙除外），不挡射程',bridge:'桥：中路渡河通道',mine:'矿桥：有本方单位站在上面时每回合 +1 费',rock:'岩石：不可进入，挡住直射'};
+
+/* ---------- state ---------- */
+let st=null;
+let sel=null, previewKey=null, inspectId=null, hoverKey=null, fx=null, thinking=false;
+let flash=null, silent=false;   // flash: the cell an AI just deployed to; silent: replay simulation running
+// animation timings (ms): one AI placement, pause after the AI's turn, showing the attacks, the deaths
+const SPEEDS={slow:{place:1100,after:900,show:4500,die:1100},normal:{place:700,after:600,show:3000,die:850},fast:{place:250,after:250,show:1100,die:450}};
+let speed='normal';
+try{const v=localStorage.getItem('hexwar-speed');if(SPEEDS[v])speed=v;}catch(_){}
+const SP=()=>RM?SPEEDS.fast:SPEEDS[speed];
+let showPred=true, showThreat=false;
+const FINE=matchMedia('(hover:hover) and (pointer:fine)').matches;
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function fresh(mode,opts={}){
+  return {mode,opts,aiSides:opts.aiSides||[false,false],aiLevels:opts.aiLevels||['hard','hard'],round:0,first:0,active:0,phase:'deploy',bank:[0,0],hp:[BASE_HP,BASE_HP],rage:[0,0],
+    units:[],roads:{},pending:[],nextId:1,log:[],hist:[],turnStack:[],lastInc:[0,0],winner:null};
+}
+
+/* ---------- engine ---------- */
+const keyOf=u=>u.c*100+u.r;
+function buildOcc(s){const m=new Map();for(const u of s.units)m.set(keyOf(u),u);return m;}
+function connect(s,p,occ){
+  const seen=new Set([BASE[p]]), q=[BASE[p]];
+  while(q.length){const k=q.pop();for(const n of NB1.get(k)){if(seen.has(n))continue;const v=occ.get(n);
+    if((v&&v.owner===p&&!U[v.type].boom)||(!v&&s.roads[n]===p)){seen.add(n);q.push(n);}}}   // barrels don't carry supply
+  return seen;
+}
+const CC=new Map();   // cached footprints of fixed-shape ranges, keyed by type/owner/cell
+function cover(u,occ){
+  const d=U[u.type]; if(!d.sh) return [];
+  const sh=SH[d.sh], sg=u.owner===0?1:-1, out=[];
+  if(!sh.line){
+    const ck=(TIDX[u.type]*2+u.owner)*2000+u.c*100+u.r;
+    let a=CC.get(ck);
+    if(!a){a=[];for(const [dc,dr] of sh.cells){const k=K(u.c+dc*sg,u.r+dr*sg);if(k>=0)a.push(k);}CC.set(ck,a);}
+    return a;
+  }
+  {
+    const [dc,dr]=sh.line;
+    for(let i=1;i<=sh.len;i++){
+      const k=K(u.c+dc*i*sg,u.r+dr*i*sg); if(k<0) break;
+      const t=TER(k); if(t==='rock') break;
+      out.push(k);
+      if(occ.has(k)||k===BASE[0]||k===BASE[1]||t==='forest') break;
+    }
+  }
+  return out;
+}
+function auraCells(u){
+  const d=U[u.type], k=keyOf(u);
+  if(d.aura==='deploy') return NB2.get(k);
+  if(d.aura||d.boom) return NB1.get(k);
+  return [];
+}
+function computeStats(s,occ,conn){
+  const stats=new Map();
+  for(const u of s.units){
+    const d=U[u.type], k=keyOf(u), t=TER(k);
+    let hp=d.hp, atk=d.atk, armor=d.armor||0, hpA=0, atkA=0, armA=0, enemyAdj=0;
+    for(const n of NB1.get(k)){const v=occ.get(n); if(!v) continue;
+      if(v.owner===u.owner){const a=U[v.type].aura; if(a==='hp')hpA=1; else if(a==='atk')atkA=1; else if(a==='armor')armA=1;}
+      else enemyAdj++;}
+    if(t==='forest'&&!d.fly) hp+=1;
+    hp+=hpA; armor+=armA;
+    const isolated=!conn[u.owner].has(k)&&!d.drop;
+    if(d.atk>0){
+      atk+=atkA;
+      if(d.rage) atk+=Math.min(2,enemyAdj);
+      if(d.cls==='R'&&t==='hill') atk+=1;
+      if(s.round>=FINALE) atk+=1;
+      if(isolated) atk-=1;
+      atk=Math.max(0,atk);
+    }
+    stats.set(u.id,{hp,atk,armor,isolated,noAtk:!!(d.setup&&u.born===s.round),marked:false});
+  }
+  for(const u of s.units){
+    if(!U[u.type].mark) continue;
+    if(stats.get(u.id).noAtk) continue;
+    for(const k of cover(u,occ)){const v=occ.get(k); if(v&&v.owner!==u.owner) stats.get(v.id).marked=true;}
+  }
+  for(const v of stats.values()) if(v.marked) v.armor=Math.max(0,v.armor-1);
+  return stats;
+}
+function resolve(s,track){
+  const occ=buildOcc(s), hits=track?[]:null;   // hits: who hit whom for how much (only for animations)
+  const conn=[connect(s,0,occ),connect(s,1,occ)];
+  const stats=computeStats(s,occ,conn);
+  const dmg=new Map(); for(const u of s.units) dmg.set(u.id,0);
+  const add=(id,a)=>dmg.set(id,dmg.get(id)+a);
+  const baseDmg=[0,0], covers=[new Set(),new Set()];
+  for(const u of s.units){
+    const d=U[u.type], su=stats.get(u.id);
+    if(!d.sh||su.noAtk||su.atk<=0) continue;
+    for(const k of cover(u,occ)){
+      covers[u.owner].add(k);
+      if(k===BASE[1-u.owner]){const a=su.atk*(d.siege||1);baseDmg[1-u.owner]+=a;if(hits)hits.push({from:keyOf(u),to:k,amt:a,p:u.owner});continue;}
+      if(d.onlyBase) continue;
+      const t=occ.get(k); if(!t||t.owner===u.owner) continue;
+      const td=U[t.type], ts=stats.get(t.id);
+      if(td.stealth&&hd(u.c,u.r,t.c,t.r)>1) continue;
+      let a=su.atk+(BEATS[d.cls]===td.cls?1:0);
+      if(!d.pierce) a-=ts.armor;
+      if(a<=0) continue;
+      add(t.id,a); if(hits) hits.push({from:keyOf(u),to:k,amt:a,p:u.owner});
+      if(td.thorns){add(u.id,td.thorns); if(hits) hits.push({from:k,to:keyOf(u),amt:td.thorns,p:t.owner});}
+    }
+  }
+  for(const p of [0,1]) for(const n of NB1.get(BASE[p])){
+    const t=occ.get(n); if(!t||t.owner===p) continue;
+    const a=BASE_AURA-stats.get(t.id).armor; if(a>0){add(t.id,a); if(hits) hits.push({from:BASE[p],to:n,amt:a,p});}
+  }
+  const dead=new Set(), booms=[];
+  const check=()=>{const nw=[];for(const u of s.units){if(dead.has(u.id))continue;if(stats.get(u.id).hp<=dmg.get(u.id)){dead.add(u.id);nw.push(u);}}return nw;};
+  let nw=check();
+  for(let guard=0;guard<50;guard++){
+    const bs=nw.filter(u=>U[u.type].boom); if(!bs.length) break;
+    for(const b of bs){booms.push(b); for(const n of NB1.get(keyOf(b))){const t=occ.get(n); if(t){add(t.id,U[b.type].boom); if(hits) hits.push({from:keyOf(b),to:n,amt:U[b.type].boom,p:-1});}}}
+    nw=check();
+  }
+  return {occ,conn,stats,dmg,dead,baseDmg,covers,booms,hits};
+}
+function deployable(s,p,type){
+  const d=U[type], out=new Set();
+  if(d.unique&&s.units.some(u=>u.owner===p&&u.type===type)) return out;
+  const occ=buildOcc(s);
+  const ok=k=>!occ.has(k)&&k!==BASE[0]&&k!==BASE[1]&&TER(k)!=='rock'&&(TER(k)!=='river'||d.river||d.fly);
+  const conn=connect(s,p,occ);
+  const R=d.dash?NB2:NB1;
+  for(const k of conn){
+    for(const n of R.get(k)) if(ok(n)) out.add(n);
+    const v=occ.get(k); if(v&&v.type==='banner') for(const n of NB2.get(k)) if(ok(n)) out.add(n);
+  }
+  for(const n of NB2.get(BASE[p])) if(ok(n)) out.add(n);   // your base's surroundings can never be sealed off
+  if(d.drop) for(const c of CELLS) if(ok(c.k)&&distK(c.k,BASE[1-p])>2) out.add(c.k);
+  if(d.boom&&out.size){   // fuse needs time: no deploying into cells the enemy already covers
+    for(const n of NB1.get(BASE[1-p])) out.delete(n);
+    for(const u of s.units) if(u.owner!==p&&U[u.type].atk>0&&!U[u.type].onlyBase) for(const k of cover(u,occ)) out.delete(k);
+  }
+  return out;
+}
+const mines=(s,p)=>s.units.filter(u=>u.owner===p&&TER(keyOf(u))==='mine').length;
+const fieldValue=(s,p)=>s.units.filter(u=>u.owner===p).reduce((a,u)=>a+U[u.type].cost,0);
+
+/* ---------- flow ---------- */
+function log(text,side=-1,cls=''){st.log.unshift({text,side,cls});if(st.log.length>140)st.log.length=140;}
+function startRound(){
+  st.round++; st.first=(st.round-1)%2;
+  if(st.pending.length){
+    const occ=buildOcc(st);
+    for(const pr of st.pending){
+      const k=pr.c*100+pr.r;
+      if(!occ.has(k)){const u={id:st.nextId++,type:pr.type,owner:pr.owner,c:pr.c,r:pr.r,born:st.round,revived:true};st.units.push(u);occ.set(k,u);log(`${NAMES[pr.owner]} 骷髅兵原地重生`,pr.owner);}
+      else log(`${NAMES[pr.owner]} 骷髅兵的格子被占，无法重生`,pr.owner);
+    }
+    st.pending=[];
+  }
+  log(`第 ${st.round} 回合`,-1,'rh');
+  for(const p of [0,1]){
+    const inc=income(st.round)+mines(st,p);
+    st.lastInc[p]=inc; st.bank[p]=Math.min(BANK_CAP,st.bank[p]+inc);
+  }
+  if(st.round===FINALE) log('决战开始：所有单位攻击 +1');
+  st.active=st.first; st.phase='deploy'; st.turnStack=[];
+  if(!silent) toast(`${NAMES[st.active]} 部署`,st.active);
+}
+function place(p,type,k){
+  const d=U[type]; st.bank[p]-=d.cost;
+  const road=st.roads[k]; if(road!==undefined) delete st.roads[k];
+  const u={id:st.nextId++,type,owner:p,c:KC(k),r:KR(k),born:st.round};
+  st.units.push(u); st.turnStack.push({id:u.id,cost:d.cost,road,k}); st.hist.push([st.round,p,type,KC(k),KR(k)]);
+  return u;
+}
+function undo(){
+  const t=st.turnStack.pop(); if(!t) return; st.hist.pop();
+  st.units=st.units.filter(u=>u.id!==t.id); st.bank[st.active]+=t.cost;
+  if(t.road!==undefined) st.roads[t.k]=t.road;
+  if(inspectId===t.id) inspectId=null;
+}
+function endTurn(){
+  if(st.phase!=='deploy') return;
+  const placed=st.turnStack.length;
+  log(`${NAMES[st.active]} 部署了 ${placed} 个单位`,st.active);
+  sel=null; previewKey=null;
+  if(st.active===st.first){st.active=1-st.first; st.turnStack=[]; toast(`${NAMES[st.active]} 部署`,st.active); render(); maybeAI();}
+  else if(st.mode==='ai'&&isAI(st.active)) awaitConfirm();   // against the computer: let the player look before resolving
+  else runResolve();
+}
+// the computer has finished deploying: show what this resolution will do and wait for the player's go-ahead
+function awaitConfirm(){
+  st.phase='confirm'; flash=null;
+  const res=resolve(st,true);
+  fx={res,stage:1}; caption(`电脑部署完毕 · ${resolveSummary(st,res)}`); render();
+}
+function runResolve(){
+  const confirmed=st.phase==='confirm'&&fx;
+  st.phase='resolve'; inspectId=null; flash=null;
+  const res=confirmed?fx.res:resolve(st,true);
+  fx={res,stage:1}; caption(resolveSummary(st,res)); render();
+  const sp=SP();
+  setTimeout(()=>{fx.stage=2;render();
+    setTimeout(()=>{commit(res);fx=null;caption(null);if(st.phase!=='over')startRound();render();maybeAI();},sp.die);},confirmed?250:sp.show);
+}
+// one line describing a resolution: losses on each side and base damage
+function resolveSummary(s,res){
+  const parts=[];
+  for(const p of [0,1]){
+    const lost=s.units.filter(u=>u.owner===p&&res.dead.has(u.id)).map(u=>U[u.type].n);
+    if(lost.length) parts.push(`${NAMES[p]}阵亡 ${lost.join('、')}`);
+    if(res.baseDmg[p]>0) parts.push(`${NAMES[p]}大本营 −${res.baseDmg[p]}`);
+  }
+  return parts.length?'结算：'+parts.join('；'):'结算：无伤亡';
+}
+function caption(text,p){
+  const el=$('#caption'); if(!el) return;
+  if(!text){el.hidden=true;return;}
+  el.hidden=false; el.textContent=text; el.dataset.p=p==null?'':p;
+}
+function commit(res){
+  const lost=[[],[]];
+  for(const u of st.units){
+    if(!res.dead.has(u.id)) continue;
+    const d=U[u.type]; lost[u.owner].push(d.n);
+    if(d.revive&&!u.revived) st.pending.push({type:u.type,owner:u.owner,c:u.c,r:u.r});
+    if(d.river) st.roads[keyOf(u)]=u.owner;
+  }
+  for(const b of res.booms) log(`${NAMES[b.owner]} 火药桶殉爆`,b.owner);
+  st.units=st.units.filter(u=>!res.dead.has(u.id));
+  for(const p of [0,1]) if(lost[p].length) log(`${NAMES[p]} 阵亡：${lost[p].join('、')}`,p);
+  for(const p of [0,1]){
+    if(res.baseDmg[p]>0){st.hp[p]-=res.baseDmg[p];log(`${NAMES[p]} 大本营受到 ${res.baseDmg[p]} 点伤害`,p);}
+    const steps=Math.floor((BASE_HP-Math.max(0,st.hp[p]))/5), give=steps-st.rage[p];
+    if(give>0&&st.hp[p]>0){st.rage[p]=steps;st.bank[p]=Math.min(BANK_CAP,st.bank[p]+2*give);log(`${NAMES[p]} 怒气 +${2*give} 费`,p);}
+  }
+  if(!lost[0].length&&!lost[1].length&&!res.baseDmg[0]&&!res.baseDmg[1]) log('结算：无伤亡');
+  const d0=st.hp[0]<=0, d1=st.hp[1]<=0;
+  if(d0||d1){
+    st.phase='over';
+    if(d0&&d1){const v0=fieldValue(st,0),v1=fieldValue(st,1);st.winner=v0===v1?-1:(v0>v1?0:1);st.endNote=`双方大本营同时陷落，按场上单位总费用 ${v0} : ${v1} 判定`;}
+    else {st.winner=d0?1:0;st.endNote=`${NAMES[1-st.winner]} 大本营被摧毁`;}
+    if(!silent) setTimeout(showOver,RM?50:500);
+  }
+}
+
+/* ---------- AI ----------
+   easy   : noisy greedy on this round's outcome only
+   normal : greedy, evaluation also looks one round ahead (setup units, recurring base hits, exposure)
+   hard   : builds several full deployment plans (incl. saving money), simulates the opponent's
+            greedy reply to each (or, when moving second, the next round's reply) and keeps the best.
+   Search runs as a generator, time-sliced so the page stays responsive. */
+const LEVELS={easy:'简单',normal:'普通',hard:'困难',master:'大师'};
+const isAI=p=>!!(st&&st.aiSides[p]);
+let simId=-10;
+function cloneSim(s){return {round:s.round,first:s.first,mover:s.mover||0,units:s.units.slice(),roads:Object.assign({},s.roads),bank:s.bank.slice(),hp:s.hp.slice()};}
+function simPlace(s,p,t,k){const u={id:simId--,type:t,owner:p,c:KC(k),r:KR(k),born:s.round};s.units.push(u);s.bank[p]-=U[t].cost;return u;}
+function simUnplace(s,p,t){s.units.pop();s.bank[p]+=U[t].cost;}
+// exact round transition on a plain state, same rules as commit() + startRound(): resolve, dead units leave
+// (skeletons queue a revive, engineers leave a road), base damage, rage money; if nobody has fallen, the next
+// round starts with revives and income. State: {round,mover,units,roads,bank,hp,rage,pending,nextId}
+function simEndRound(s){
+  const res=resolve(s);
+  const n={round:s.round,mover:0,units:[],roads:Object.assign({},s.roads),bank:s.bank.slice(),hp:s.hp.slice(),
+    rage:(s.rage||[0,0]).slice(),pending:[],nextId:s.nextId,over:false,winner:null};
+  for(const u of s.units){
+    if(!res.dead.has(u.id)){n.units.push(u);continue;}
+    const d=U[u.type];
+    if(d.revive&&!u.revived) n.pending.push({type:u.type,owner:u.owner,c:u.c,r:u.r});
+    if(d.river) n.roads[keyOf(u)]=u.owner;
+  }
+  for(const p of [0,1]){
+    n.hp[p]-=res.baseDmg[p];
+    const steps=Math.floor((BASE_HP-Math.max(0,n.hp[p]))/5), give=steps-n.rage[p];
+    if(give>0&&n.hp[p]>0){n.rage[p]=steps;n.bank[p]=Math.min(BANK_CAP,n.bank[p]+2*give);}
+  }
+  if(n.hp[0]<=0||n.hp[1]<=0){
+    n.over=true;
+    if(n.hp[0]<=0&&n.hp[1]<=0){const v0=fieldValue(n,0),v1=fieldValue(n,1);n.winner=v0===v1?-1:(v0>v1?0:1);}
+    else n.winner=n.hp[0]<=0?1:0;
+    return n;
+  }
+  n.round=s.round+1;
+  const occ=buildOcc(n);
+  for(const pr of n.pending){const k=pr.c*100+pr.r;if(!occ.has(k)){const u={id:n.nextId++,type:pr.type,owner:pr.owner,c:pr.c,r:pr.r,born:n.round,revived:true};n.units.push(u);occ.set(k,u);}}
+  n.pending=[];
+  for(const p of [0,1]) n.bank[p]=Math.min(BANK_CAP,n.bank[p]+income(n.round)+mines(n,p));
+  return n;
+}
+function advanceSim(s){
+  const res=resolve(s), n=cloneSim(s);
+  n.units=s.units.filter(u=>!res.dead.has(u.id));
+  for(const u of s.units) if(res.dead.has(u.id)&&U[u.type].river) n.roads[keyOf(u)]=u.owner;
+  n.hp=[s.hp[0]-res.baseDmg[0],s.hp[1]-res.baseDmg[1]];
+  n.round=s.round+1;
+  for(const p of [0,1]) n.bank[p]=Math.min(BANK_CAP,n.bank[p]+income(n.round)+mines(n,p));
+  return n;
+}
+// value of a base at a given HP: linear, with extra weight once it gets low
+// evaluation weights, tuned by self-play (train/spsa.js); 'over' was then raised to match 'bank' so income is never wasted at the cap
+// own=1.5: our own base counts 1.5x. Self-play alone undervalued it, and players who trade units for base damage exploited that
+// (vs a base-trading AI: 22-2 instead of 15-9; vs the plain AI: 14-10)
+let EW=/*EW*/{iso:0.385,adv:1.117,mine:1.112,bank:1.676,over:1.7,die:0.224,statBase:0.75,pot:0.276,exp:0.373,hpLin:0.529,hpLow:4.458,knee:8,delay:0,own:1.5,foe:1}/*END*/;
+// value of a base at a given HP: linear, with extra weight once it gets low
+const baseVal=hp=>hp<=0?-80:EW.hpLin*hp-(hp<EW.knee?(EW.knee-hp)*EW.hpLow:0);   // below `knee` HP every point counts much more
+function evalBoard(s,p,deep){
+  const res=resolve(s), e=1-p;
+  const hpP=s.hp[p]-res.baseDmg[p], hpE=s.hp[e]-res.baseDmg[e];
+  if(hpP<=0||hpE<=0){
+    if(hpE<=0&&hpP>0) return 5000+hpP;
+    if(hpP<=0&&hpE>0) return -5000-hpE;
+    // both bases fall: decided by the units still standing after this resolution
+    const alive={units:s.units.filter(u=>!res.dead.has(u.id))};
+    const dv=fieldValue(alive,p)-fieldValue(alive,e); return dv>0?2000:(dv<0?-2000:0);
+  }
+  let sc=0; const alive=[];
+  for(const u of s.units){
+    if(res.dead.has(u.id)) continue; alive.push(u);
+    const d=U[u.type], su=res.stats.get(u.id), sg=u.owner===p?1:-1;
+    let v=d.cost;
+    if(su.isolated&&!d.drop&&d.atk>0) v*=1-EW.iso;
+    v+=ADV[u.owner].get(keyOf(u))*EW.adv;
+    if(TER(keyOf(u))==='mine') v+=EW.mine;
+    sc+=sg*v;
+  }
+  sc+=EW.own*baseVal(hpP)-EW.foe*baseVal(hpE);   // own / foe: how much our own base and theirs matter (default 1 each)
+  const nextInc=income(s.round+1);
+  for(const q of [0,1]){const b=s.bank[q];sc+=(q===p?1:-1)*(EW.bank*b-EW.over*Math.max(0,b+nextInc-BANK_CAP));}
+  if(deep){
+    // if nobody moved next round: who would still die, and how much would the bases take
+    const r2=resolve({round:s.round+1,units:alive,roads:s.roads});
+    for(const u of alive) if(r2.dead.has(u.id)) sc-=(u.owner===p?1:-1)*EW.die*U[u.type].cost;
+    sc+=EW.statBase*(EW.own*(baseVal(hpP-r2.baseDmg[p])-baseVal(hpP))-EW.foe*(baseVal(hpE-r2.baseDmg[e])-baseVal(hpE)));
+    if(potOn){
+      // and if each side spends next round's money on hitting the other base: how much more could it add?
+      const post={round:s.round+1,units:alive,roads:s.roads}, hp2=[0,0];
+      hp2[p]=hpP-r2.baseDmg[p]; hp2[e]=hpE-r2.baseDmg[e];
+      for(const q of [0,1]){
+        const nb=Math.min(BANK_CAP,s.bank[q]+income(s.round+1)+mines(post,q));
+        const pot=basePotential(post,q,r2,nb), h=hp2[1-q];
+        sc+=(q===p?EW.foe:-EW.own)*EW.pot*(baseVal(h)-baseVal(h-pot));
+        // which of the other side's units could q kill next round with fresh deployments, and how cheaply?
+        if(expOn){
+          const kills=unitThreats(post,q,r2,nb); let kv=0,w=1;
+          for(const v of kills){kv+=v*w;w*=0.5;}   // money can only be spent once, so later kills count less
+          sc+=(q===p?1:-1)*EW.exp*kv;
+        }
+      }
+    }
+  }
+  return sc;
+}
+let expOn=true;
+// inverse range tables: INV[q][type] maps a target cell to the cells a new unit of that type would hit it from
+const INV=[{},{}];
+function knapMin(opts,need){
+  const dp=new Array(need+1).fill(Infinity); dp[0]=0;
+  for(const [c,d] of opts) for(let x=need-1;x>=0;x--){if(dp[x]===Infinity)continue;const y=Math.min(need,x+d);if(dp[x]+c<dp[y])dp[y]=dp[x]+c;}
+  return dp[need];
+}
+function unitThreats(s,q,r2,budget){
+  const occ=r2.occ, conn=r2.conn[q], fin=s.round>=FINALE?1:0, out=[];
+  for(const v of s.units){
+    if(v.owner===q) continue;
+    const vs=r2.stats.get(v.id), need=vs.hp-r2.dmg.get(v.id); if(need<=0) continue;
+    const vd=U[v.type], vk=keyOf(v), opts=[];
+    for(const t of HIT_TYPES){
+      const d=U[t]; if(d.cost>budget||d.onlyBase) continue;
+      const srcs=INV[q][t].get(vk); if(!srcs) continue;
+      for(const k of srcs){
+        if(!canDeploy(k,d,q,occ,conn)) continue;
+        const c=KC(k), r=KR(k);
+        if(vd.stealth&&hd(c,r,v.c,v.r)>1) continue;
+        if(SH[d.sh].line&&!cover({type:t,owner:q,c,r},occ).includes(vk)) continue;
+        let dm=d.atk+(d.cls==='R'&&TER(k)==='hill'?1:0)+fin+(BEATS[d.cls]===vd.cls?1:0);
+        if(!d.pierce) dm-=vs.armor;
+        if(dm>0) opts.push([d.cost,dm]);
+      }
+    }
+    if(!opts.length) continue;
+    opts.sort((a,b)=>b[1]/b[0]-a[1]/a[0]);
+    const mc=knapMin(opts.slice(0,10),need);
+    if(mc<=budget){
+      // a unit hitting our base is worth more than its price: it will keep doing it every round
+      const vs2=r2.stats.get(v.id), bonus=cover(v,occ).includes(BASE[q])?2*vs2.atk*(vd.siege||1):0;
+      const val=vd.cost+bonus; out.push(mc<=val?val:val*0.6);   // a kill that costs more than the victim is worth less
+    }
+  }
+  return out.sort((a,b)=>b-a);
+}
+// most damage side q could add to the enemy base next round by deploying with `budget` cost
+let potOn=true;
+function canDeploy(k,d,q,occ,conn){
+  if(occ.has(k)||k===BASE[0]||k===BASE[1]) return false;
+  const t=TER(k); if(t==='rock'||(t==='river'&&!d.river&&!d.fly)) return false;
+  if(distK(k,BASE[q])<=2) return true;
+  for(const n of (d.dash?NB2:NB1).get(k)) if(conn.has(n)) return true;
+  for(const n of NB2.get(k)){const v=occ.get(n);if(v&&v.owner===q&&v.type==='banner'&&conn.has(n))return true;}
+  return false;
+}
+function basePotential(s,q,r2,budget){
+  const occ=r2.occ, conn=r2.conn[q], eb=BASE[1-q], fin=s.round>=FINALE?1:0, opts=[];
+  const hasUnique=s.units.some(u=>u.owner===q&&U[u.type].unique);
+  for(const t of HIT_TYPES){
+    const d=U[t]; if(d.cost>budget||(d.unique&&hasUnique)) continue;
+    for(const k of BASE_HIT[q][t]){
+      if(!canDeploy(k,d,q,occ,conn)) continue;
+      if(SH[d.sh].line&&!cover({type:t,owner:q,c:KC(k),r:KR(k)},occ).includes(eb)) continue;
+      opts.push({k,c:d.cost,d:(d.atk+(d.cls==='R'&&TER(k)==='hill'?1:0)+fin)*(d.siege||1),u:!!d.unique});
+    }
+  }
+  // units that need a round to set up (catapult) can't fire next round but will the round after: count them at EW.delay
+  if(EW.delay>0) for(const t of DELAY_TYPES){
+    const d=U[t]; if(d.cost>budget) continue;
+    for(const k of BASE_HIT[q][t]) if(canDeploy(k,d,q,occ,conn)) opts.push({k,c:d.cost,d:EW.delay*(d.atk+fin)*(d.siege||1),u:false});
+  }
+  return maxDamage(opts,budget);
+}
+// best total damage from options on distinct cells within budget (branch and bound)
+function maxDamage(opts,budget){
+  opts.sort((x,y)=>y.d/y.c-x.d/x.c);
+  const L=opts.slice(0,14), used=new Set(); let best=0;
+  const dfs=(i,dmg,cost,uq)=>{
+    if(dmg>best) best=dmg;
+    if(i>=L.length||dmg+(budget-cost)*L[i].d/L[i].c<=best) return;
+    const o=L[i];
+    if(cost+o.c<=budget&&!used.has(o.k)&&!(o.u&&uq)){used.add(o.k);dfs(i+1,dmg+o.d,cost+o.c,uq||o.u);used.delete(o.k);}
+    dfs(i+1,dmg,cost,uq);
+  };
+  dfs(0,0,0,false); return best;
+}
+// greedy deployment for p on sim s (mutates s); returns the list of [type,key]
+function* greedyG(s,p,o){
+  const plan=[]; let base=evalBoard(s,p,o.deep), n=0;
+  for(let pick=0;pick<(o.maxPicks||10);pick++){
+    let best=null;
+    for(const t of TYPES){
+      if(U[t].cost>s.bank[p]) continue;
+      for(const k of deployable(s,p,t)){
+        simPlace(s,p,t,k);
+        const sc=evalBoard(s,p,o.deep)+(o.noise?Math.random()*o.noise:0);
+        simUnplace(s,p,t);
+        if(!best||sc>best.sc) best={sc,t,k};
+        if(++n%40===0) yield;
+      }
+    }
+    if(!best||best.sc<=base+0.05) break;
+    simPlace(s,p,best.t,best.k); plan.push([best.t,best.k]); base=best.sc;
+  }
+  return plan;
+}
+function* scorePlan(root,p,plan,isFirst,oppDeep){
+  const s=cloneSim(root);
+  for(const [t,k] of plan) simPlace(s,p,t,k);
+  if(isFirst){
+    yield* greedyG(s,1-p,{deep:oppDeep,maxPicks:5});   // opponent sees our move and answers
+    return evalBoard(s,p,true);
+  }
+  const e1=evalBoard(s,p,true);
+  const s2=advanceSim(s);
+  yield* greedyG(s2,1-p,{deep:oppDeep,maxPicks:5});    // next round: how badly can they punish this layout
+  return 0.55*e1+0.45*evalBoard(s2,p,false);
+}
+const BLOCKERS=['engineer','thorn','militia','shield'];   // cheap cell-blockers, no-attack ones first
+function* planHard(p,budget,width=12,oppDeep=false,seeds=false,roll=null,listOnly=false){
+  const t0=performance.now(), root=cloneSim(st), isFirst=st.active===st.first;
+  const over=f=>performance.now()-t0>budget*f;
+  // 1. rank every single placement
+  const cands=[]; let n=0;
+  for(const t of TYPES){
+    if(U[t].cost>root.bank[p]) continue;
+    for(const k of deployable(root,p,t)){
+      simPlace(root,p,t,k); cands.push({sc:evalBoard(root,p,true),t,k}); simUnplace(root,p,t);
+      if(++n%40===0) yield;
+    }
+  }
+  cands.sort((a,b)=>b.sc-a.sc);
+  const firsts=[], perType={};
+  for(const c of cands){if((perType[c.t]||0)>=2)continue;perType[c.t]=(perType[c.t]||0)+1;firsts.push(c);if(firsts.length>=width)break;}
+  // 2. complete each opening greedily into a full plan
+  const full=[];
+  for(const f of firsts){
+    const s=cloneSim(root); simPlace(s,p,f.t,f.k);
+    const rest=yield* greedyG(s,p,{deep:true,maxPicks:8});
+    full.push({plan:[[f.t,f.k],...rest],q:evalBoard(s,p,true)});
+    if(over(0.45)) break;
+  }
+  // seeded openings that gain nothing on their own this round, so the ranking above never finds them
+  const seeded=[];
+  const grow=function*(sp){
+    const s=cloneSim(root);
+    for(const [t,k] of sp){if(s.bank[p]<U[t].cost||!deployable(s,p,t).has(k))return;simPlace(s,p,t,k);}
+    const rest=yield* greedyG(s,p,{deep:true,maxPicks:6});
+    seeded.push([...sp,...rest]);
+  };
+  if(seeds){
+    // a) multi-unit kill combos, e.g. ganging up on an armoured dragon
+    for(const sp of killSeeds(root,p,isFirst)){yield* grow(sp); if(over(0.55)) break;}
+    // b) denial: predict the cells the opponent most wants next and occupy them first,
+    //    preferring units with no attack so the blocker can't set off a barrel trap
+    const s0=isFirst?cloneSim(root):advanceSim(root);
+    const reply=yield* greedyG(s0,1-p,{deep:true,maxPicks:4});
+    for(const [,k] of reply){
+      for(const t of BLOCKERS){
+        if(root.bank[p]<U[t].cost||!deployable(root,p,t).has(k)) continue;
+        yield* grow([[t,k]]); break;
+      }
+      if(over(0.65)) break;
+    }
+  }
+  full.sort((a,b)=>b.q-a.q);
+  // 3. candidate list: best few plans, every seeded plan, passing, the rest, then shorter prefixes (saving money)
+  const seen=new Set(), list=[];
+  const addPlan=pl=>{const sig=pl.map(x=>x[0]+'@'+x[1]).sort().join(',');if(!seen.has(sig)){seen.add(sig);list.push(pl);}};
+  full.slice(0,3).forEach(f=>addPlan(f.plan));
+  seeded.forEach(addPlan);
+  addPlan([]);
+  full.forEach(f=>addPlan(f.plan));
+  full.forEach(f=>{for(let i=f.plan.length-1;i>=1;i--) addPlan(f.plan.slice(0,i));});
+  if(listOnly) return list;   // the tree search (planMCTS) scores these itself
+  // 4. score against a modelled opponent reply
+  const scored=[];
+  for(const pl of list){
+    const sc=(yield* scorePlan(root,p,pl,isFirst,oppDeep))+Math.random()*0.3;   // jitter: varied, less predictable play
+    scored.push({sc,pl});
+    if(over(roll?0.6:1)) break;
+  }
+  if(!scored.length) return full[0]?full[0].plan:[];
+  scored.sort((a,b)=>b.sc-a.sc);
+  // 5. look further ahead: play the best few plans forward a few rounds with both sides deploying greedily
+  if(roll){
+    const done=[];
+    for(const x of scored.slice(0,roll.top)){
+      const r=yield* rollout(root,p,x.pl,isFirst,roll.rounds);
+      done.push({sc:0.4*x.sc+0.6*r,pl:x.pl});
+      if(over(1)) break;
+    }
+    done.sort((a,b)=>b.sc-a.sc);
+    return done[0].pl;
+  }
+  return scored[0].pl;
+}
+function* rollout(root,p,plan,isFirst,rounds){
+  let s=cloneSim(root);
+  for(const [t,k] of plan) simPlace(s,p,t,k);
+  if(isFirst) yield* greedyG(s,1-p,{deep:true,maxPicks:4});
+  for(let i=0;i<rounds;i++){
+    s=advanceSim(s);
+    if(s.hp[0]<=0||s.hp[1]<=0) break;
+    const f=(s.round-1)%2;
+    for(const q of [f,1-f]) yield* greedyG(s,q,{deep:true,maxPicks:3});
+  }
+  return evalBoard(s,p,true);
+}
+/* ---------- AI: multi-unit kill combos ----------
+   Greedy search adds one unit at a time and only keeps it if the position improves at once, so it
+   never starts a combo whose first unit gains nothing alone (e.g. three units needed for a dragon).
+   These helpers build such combos directly; the hard planner uses them as extra openings. */
+const ATK_TYPES=TYPES.filter(t=>U[t].atk>0&&!U[t].setup);
+// every way side a can hurt each enemy unit with one new placement: Map(unit -> [{t,k,c,d}])
+function strikeOptions(s,res,a,budget){
+  const occ=res.occ, fin=s.round>=FINALE?1:0, opts=new Map();
+  const add=(v,o)=>{let l=opts.get(v);if(!l){l=[];opts.set(v,l);}l.push(o);};
+  for(const t of ATK_TYPES){
+    const d=U[t]; if(d.cost>budget) continue;
+    for(const k of deployable(s,a,t)){
+      const c=KC(k), r=KR(k), atk=d.atk+(d.cls==='R'&&TER(k)==='hill'?1:0)+fin;
+      if(d.onlyBase) continue;
+      for(const ck of cover({type:t,owner:a,c,r},occ)){
+        const v=occ.get(ck); if(!v||v.owner===a) continue;
+        const vd=U[v.type];
+        if(vd.stealth&&hd(c,r,v.c,v.r)>1) continue;
+        let dm=atk+(BEATS[d.cls]===vd.cls?1:0); if(!d.pierce) dm-=res.stats.get(v.id).armor;
+        if(dm>0) add(v,{t,k,c:d.cost,d:dm});
+      }
+    }
+  }
+  return opts;
+}
+const byEff=(x,y)=>y.d/y.c-x.d/x.c||y.d-x.d;
+// for each side and attacking type, the cells from which a new unit would reach the enemy base
+const HIT_TYPES=TYPES.filter(t=>U[t].atk>0&&U[t].sh&&!U[t].setup), DELAY_TYPES=TYPES.filter(t=>U[t].atk>0&&U[t].sh&&U[t].setup);
+const BASE_HIT=[{},{}];
+function buildAITables(){   // depends on the map: rebuilt by loadMap()
+  for(const q of [0,1]) for(const t of [...HIT_TYPES,...DELAY_TYPES])
+    BASE_HIT[q][t]=CELLS.filter(c=>cover({type:t,owner:q,c:c.c,r:c.r},new Map()).includes(BASE[1-q])).map(c=>c.k);
+  for(const q of [0,1]) for(const t of HIT_TYPES){
+    const m=new Map();
+    for(const c of CELLS) for(const tk of cover({type:t,owner:q,c:c.c,r:c.r},new Map())){let l=m.get(tk);if(!l){l=[];m.set(tk,l);}l.push(c.k);}
+    INV[q][t]=m;
+  }
+}
+// cheapest set of placements (distinct cells) that deals `need` damage, from a list of strike options
+function bestCombo(list,need,budget){
+  list.sort(byEff);
+  const per=new Map(), L=[];
+  for(const o of list){const n=per.get(o.k)||0;if(n>=2)continue;per.set(o.k,n+1);L.push(o);if(L.length>=14)break;}
+  let best=null; const used=new Set(), pick=[];
+  const dfs=(i,dmg,cost)=>{
+    if(dmg>=need){if(!best||cost<best.cost)best={cost,pick:pick.slice()};return;}
+    if(i>=L.length||(best&&cost+1>=best.cost)) return;
+    const o=L[i];
+    if(!used.has(o.k)&&cost+o.c<=budget&&(!best||cost+o.c<best.cost)&&!(U[o.t].unique&&pick.some(x=>x.t===o.t))){
+      used.add(o.k);pick.push(o);dfs(i+1,dmg+o.d,cost+o.c);pick.pop();used.delete(o.k);}
+    dfs(i+1,dmg,cost);
+  };
+  dfs(0,0,0); return best;
+}
+// opening plans that each kill one high-value enemy unit this round (plus pairs of them)
+function killSeeds(root,p,isFirst){
+  const res=resolve(root), bank=root.bank[p];
+  const opts=strikeOptions(root,res,p,bank), found=[];
+  for(const [v,l] of opts){
+    if(res.dead.has(v.id)) continue;
+    const need=res.stats.get(v.id).hp-res.dmg.get(v.id);
+    const hitsBase=cover(v,res.occ).includes(BASE[p])?6:0;
+    // moving first, the opponent can still heal or armour the target, so also try overkill margins
+    let killable=false;
+    for(const extra of isFirst?[0,1,2]:[0]){
+      const c=bestCombo(l.slice(),need+extra,bank); if(!c) break;
+      killable=true;
+      found.push({val:U[v.type].cost+hitsBase-c.cost*0.5-extra*0.1,plan:c.pick.map(o=>[o.t,o.k]),cost:c.cost});
+    }
+    if(killable||!hitsBase) continue;
+    // something is hitting our base and can't be killed this round. Two ways to work toward it over two rounds:
+    // a) pressure: put as much damage on it as the money allows; units on the board keep attacking next round
+    const pick=[], used=new Set(); let cost=0, dmg=0;
+    for(const o of l.slice().sort(byEff)){
+      if(used.has(o.k)||cost+o.c>bank||(U[o.t].unique&&pick.some(x=>x.t===o.t))) continue;
+      used.add(o.k); pick.push(o); cost+=o.c; dmg+=o.d;
+    }
+    if(pick.length) found.push({val:U[v.type].cost*0.5+hitsBase*0.5*Math.min(1,dmg/need)-cost*0.3,plan:pick.map(o=>[o.t,o.k]),cost});
+    // b) strip its protection: kill the guard / priest next to it that raises its armour or health
+    for(const n of NB1.get(keyOf(v))){
+      const w=res.occ.get(n);
+      if(!w||w.owner===p||!['armor','hp'].includes(U[w.type].aura)||res.dead.has(w.id)) continue;
+      const lw=opts.get(w); if(!lw) continue;
+      const c=bestCombo(lw.slice(),res.stats.get(w.id).hp-res.dmg.get(w.id),bank);
+      if(c) found.push({val:U[w.type].cost+hitsBase*0.7-c.cost*0.5,plan:c.pick.map(o=>[o.t,o.k]),cost:c.cost});
+    }
+  }
+  found.sort((x,y)=>y.val-x.val);
+  const seeds=found.slice(0,8).map(f=>f.plan);
+  for(let i=0;i<Math.min(3,found.length);i++) for(let j=i+1;j<Math.min(4,found.length);j++)
+    if(found[i].cost+found[j].cost<=bank) seeds.push([...found[i].plan,...found[j].plan]);
+  return seeds;
+}
+// scripted rusher: chains the cheapest units toward the enemy base, then hits it point-blank.
+// Not a difficulty level; used by train/ to make sure tuned weights also survive an early rush.
+const RUSH_TYPES=['engineer','militia','sword','shield','spear','cav','archer','berserk'];
+function* rushPlan(p){
+  const s=cloneSim(st), e=1-p, eb=BASE[e], plan=[];
+  const head=()=>{let m=99;for(const u of s.units)if(u.owner===p)m=Math.min(m,distK(keyOf(u),eb));return m;};
+  for(let pick=0;pick<10;pick++){
+    const r0=resolve(s), h0=head(); let best=null;
+    for(const t of RUSH_TYPES){
+      if(U[t].cost>s.bank[p]) continue;
+      for(const k of deployable(s,p,t)){
+        simPlace(s,p,t,k);
+        const r=resolve(s), u=s.units[s.units.length-1];
+        let kills=0; for(const v of s.units) if(v.owner===e&&r.dead.has(v.id)&&!r0.dead.has(v.id)) kills+=U[v.type].cost;
+        const sc=4*(r.baseDmg[e]-r0.baseDmg[e])+2*(h0-head())+1.5*kills-(r.dead.has(u.id)?1.2*U[t].cost:0)-0.3*U[t].cost+Math.random()*0.2;
+        simUnplace(s,p,t);
+        if(!best||sc>best.sc) best={sc,t,k};
+      }
+      yield;
+    }
+    if(!best||best.sc<=0) break;
+    simPlace(s,p,best.t,best.k); plan.push([best.t,best.k]);
+  }
+  return plan;
+}
+/* ---------- tree search over whole-turn plans (Monte Carlo tree search) ----------
+   Each tree level is one player's whole deployment for a turn. The root's children are this turn's candidate
+   plans (from planHard's generator); deeper levels are the opponent's replies, then our follow-ups, and so on
+   up to `maxDepth` turns. Each node offers a handful of plans, produced lazily: the greedy best, passing,
+   multi-unit kill combos and a few randomised greedy variants. Positions are scored with the evaluation turned
+   into a value in [-1,1] from the root player's view. UCB decides which branch gets the next expansion,
+   so promising lines are explored deeper; the move played is the most-visited root child. */
+const moverOf=s=>{const f=(s.round-1)%2;return s.mover?1-f:f;};
+const planSig=pl=>pl.map(x=>x[0]+'@'+x[1]).sort().join(',');
+function* fastGreedy(s0,p,noise,seed){
+  const s=cloneSim(s0), plan=[];
+  if(seed) for(const [t,k] of seed){if(s.bank[p]<U[t].cost||!deployable(s,p,t).has(k))return null;simPlace(s,p,t,k);plan.push([t,k]);}
+  let base=evalBoard(s,p,true), n=0;
+  for(let pick=0;pick<6;pick++){
+    const cands=[];
+    for(const t of TYPES){
+      if(U[t].cost>s.bank[p]) continue;
+      for(const k of deployable(s,p,t)){simPlace(s,p,t,k);cands.push({q:evalBoard(s,p,false)+(noise?Math.random()*noise:0),t,k});simUnplace(s,p,t);if(++n%80===0)yield;}
+    }
+    if(!cands.length) break;
+    cands.sort((a,b)=>b.q-a.q);
+    // shortlist: the 6 best by the quick score, plus the best spot of every other unit type, so units whose
+    // value only shows up next round (a catapult sets up first) still get a full evaluation
+    const short=cands.slice(0,6), have=new Set(short.map(c=>c.t));
+    for(const c of cands) if(!have.has(c.t)){short.push(c);have.add(c.t);}
+    let best=null;
+    for(const c of short){simPlace(s,p,c.t,c.k);const sc=evalBoard(s,p,true)+(noise?Math.random()*noise:0);simUnplace(s,p,c.t);if(!best||sc>best.sc)best={sc,t:c.t,k:c.k};}
+    yield;
+    if(!best||best.sc<=base+0.05) break;
+    simPlace(s,p,best.t,best.k); plan.push([best.t,best.k]); base=best.sc;
+  }
+  return plan;
+}
+// one player's deployment; ends the round (resolve + income) when that player moved second
+function applyPlanSim(s,p,plan){
+  const n=cloneSim(s); for(const [t,k] of plan) simPlace(n,p,t,k);
+  if(!n.mover){n.mover=1;return {s:n,pre:null};}
+  const a=advanceSim(n); a.mover=0; return {s:a,pre:n};
+}
+function* nextPlan(node){
+  if(node.queue) return node.queue.length?node.queue.shift():undefined;
+  const s=node.s, p=node.p, i=node.prod++;
+  if(i===0) return yield* fastGreedy(s,p,0);
+  if(i===1) return [];
+  if(!node.seeds) node.seeds=killSeeds(s,p,!s.mover).slice(0,3);
+  if(i-2<node.seeds.length) return yield* fastGreedy(s,p,0,node.seeds[i-2]);
+  if(i-2-node.seeds.length<3) return yield* fastGreedy(s,p,1.2);
+  return undefined;
+}
+function* expandNode(node,P){
+  for(;;){
+    const pl=yield* nextPlan(node);
+    if(pl===undefined){node.exhausted=true;return null;}
+    if(!pl) continue;
+    const sig=planSig(pl); if(node.seen.has(sig)) continue; node.seen.add(sig);
+    const {s,pre}=applyPlanSim(node.s,node.p,pl);
+    const v=Math.tanh(evalBoard(pre||s,P,true)/10);
+    const kid={s,p:moverOf(s),depth:node.depth+1,N:0,W:0,kids:[],v,plan:pl,seen:new Set(),prod:0,
+      terminal:!!pre&&(s.hp[0]<=0||s.hp[1]<=0)};
+    node.kids.push(kid); return kid;
+  }
+}
+function* planMCTS(p,budget,maxDepth){
+  const t0=performance.now();
+  const list=yield* planHard(p,budget*0.3,12,true,true,null,true);
+  const s0=cloneSim(st); s0.mover=st.active===st.first?0:1;
+  // root candidates: the best few plans, then every kill / pressure / protector-kill seed (they gain little this round,
+  // so the time-limited list above may not reach them), then the rest
+  const q=[], qs=new Set(), add=pl=>{const g=planSig(pl);if(!qs.has(g)){qs.add(g);q.push(pl);}};
+  list.slice(0,4).forEach(add); killSeeds(s0,p,!s0.mover).forEach(add); list.slice(4).forEach(add);
+  const root={s:s0,p,depth:0,N:0,W:0,kids:[],queue:q.slice(0,18),seen:new Set(),prod:0};
+  const C=0.6;
+  while(performance.now()-t0<budget){
+    let node=root; const path=[root];
+    for(;;){
+      if(node.terminal||node.depth>=maxDepth) break;
+      const cap=node===root?Math.ceil(2*Math.sqrt(node.N+1)):Math.min(5,Math.ceil(1.2*Math.sqrt(node.N+1)));
+      if(node.kids.length<cap&&!node.exhausted){const kid=yield* expandNode(node,p);if(kid){path.push(kid);node=kid;break;}}
+      if(!node.kids.length) break;
+      const lnN=Math.log(node.N+1), sg=node.p===p?1:-1;
+      let best=null,bs=-Infinity;
+      for(const k of node.kids){const q=k.N?k.W/k.N:k.v,u=sg*q+C*Math.sqrt(lnN/(k.N+1));if(u>bs){bs=u;best=k;}}
+      node=best; path.push(node);
+    }
+    const v=node.N?node.W/node.N:node.v;
+    for(const x of path){x.N++;x.W+=v;}
+    yield;
+  }
+  let best=null;
+  for(const k of root.kids) if(!best||k.N>best.N||(k.N===best.N&&k.W>best.W)) best=k;
+  let nodes=0,deep=0; const walk=n=>{nodes++;deep=Math.max(deep,n.depth);n.kids.forEach(walk);}; walk(root);
+  planMCTS.last={nodes,deep,iters:root.N,root:root.kids.map(k=>({N:k.N,q:+(k.W/Math.max(1,k.N)).toFixed(3),n:k.plan.length}))};   // for testing
+  return best?best.plan:(list[0]||[]);
+}
+function aiGen(p,lvl,budget){
+  potOn=lvl!=='prev'; expOn=lvl!=='prev'&&lvl!=='hard0';   // 'prev' / 'hard0' = earlier hard versions, kept only for testing
+  if(lvl==='rush') return rushPlan(p);
+  if(lvl==='master') return planMCTS(p,budget*2.6,4);   // tree search: beat the previous master 27-13 over the three maps
+  if(lvl==='master0') return planHard(p,budget*2.5,16,true,true,{rounds:2,top:6});   // previous master, kept for testing
+  if(lvl==='hard') return planHard(p,budget*1.3,12,true,true,{rounds:1,top:4});
+  if(lvl==='prev') return planHard(p,budget,12,true,true);
+  if(lvl==='hard0') return planHard(p,budget*1.3,12,true,true,{rounds:1,top:4});
+  if(lvl==='normal') return planHard(p,budget*0.5,12,true);
+  return greedyG(cloneSim(st),p,{deep:false,noise:1.5});
+}
+function maybeAI(){
+  if(thinking||st.phase!=='deploy'||!isAI(st.active)) return;
+  if(videoJob){setTimeout(maybeAI,500);return;}   // let a replay recording finish first
+  const p=st.active, game=st, gen=aiGen(p,st.aiLevels[p],1500);
+  thinking=true; render();
+  const step=()=>{
+    if(st!==game) return;                        // a new game was started meanwhile
+    const t=performance.now(); let r;
+    do{r=gen.next();}while(!r.done&&performance.now()-t<14);
+    if(!r.done){setTimeout(step,0);return;}
+    // show the plan one unit at a time
+    const plan=r.value.filter(([tp])=>U[tp]); let i=0;
+    if(!plan.length) caption(`${NAMES[p]} 本回合不出兵`,p);
+    const next=()=>{
+      if(st!==game) return;
+      if(i<plan.length){
+        const [tp,k]=plan[i++];
+        if(st.bank[p]>=U[tp].cost){place(p,tp,k);flash={k,p};caption(`${NAMES[p]} 部署 ${U[tp].n}（${i}/${plan.length}）`,p);render();}
+        setTimeout(next,SP().place); return;
+      }
+      setTimeout(()=>{if(st!==game)return;flash=null;caption(null);thinking=false;endTurn();},SP().after);
+    };
+    next();
+  };
+  setTimeout(step,RM?30:(st.aiSides[0]&&st.aiSides[1]?450:250));
+}
+
+/* ---------- rendering ---------- */
+const hexPts=(x,y,s)=>{let p='';for(let i=0;i<6;i++){const a=Math.PI/3*i;p+=(x+s*Math.cos(a)).toFixed(1)+','+(y+s*Math.sin(a)).toFixed(1)+' ';}return p;};
+const svg=$('#board');
+function buildBoard(){
+  svg.setAttribute('viewBox',`0 0 ${VBW.toFixed(0)} ${VBH.toFixed(0)}`);
+  let st0='', deco='', hit='';
+  for(const c of CELLS){
+    const x=cxp(c.c), y=cyp(c.r), t=TER(c.k);
+    st0+=`<polygon class="hex t-${t}" points="${hexPts(x,y,S)}"/>`;
+    if(t==='forest') deco+=[[-11,4],[0,-6],[11,4]].map(([dx,dy])=>`<path d="M${x+dx} ${y+dy-11} l7 14 h-14z" fill="#3c6a4c"/>`).join('');
+    if(t==='hill') deco+=`<path d="M${x-18} ${y+9} q9 -18 18 -4 q9 -14 18 4" fill="none" stroke="#8c7750" stroke-width="2.5"/>`;
+    if(t==='rock') deco+=`<path d="M${x-16} ${y+10} l7 -16 l7 6 l6 -10 l12 20z" fill="#2a2e38" stroke="#3a3f4c"/>`;
+    if(t==='river') deco+=[-8,6].map(dy=>`<path d="M${x-22} ${y+dy} q5.5 -6 11 0 t11 0 t11 0 t11 0" fill="none" stroke="#2c5a7c" stroke-width="2"/>`).join('');
+    if(t==='bridge'||t==='mine') deco+=[-14,-5,4,13].map(dx=>`<line x1="${x+dx}" y1="${y-HH/2+5}" x2="${x+dx}" y2="${y+HH/2-5}" stroke="#5e4b33" stroke-width="5"/>`).join('');
+    if(t==='mine') deco+=`<path d="M${x} ${y-12} l9 12 l-9 12 l-9 -12z" fill="var(--gold)" opacity=".9"/>`;
+    hit+=`<polygon class="hit" data-k="${c.k}" points="${hexPts(x,y,S)}"/>`;
+  }
+  const mk=(id,c)=>`<marker id="${id}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`;
+  svg.innerHTML=`<defs>${mk('ah0','var(--p0)')}${mk('ah1','var(--p1)')}${mk('ahb','var(--gold)')}</defs><g>${st0}</g><g class="deco">${deco}</g><g id="g-ov" class="deco"></g><g id="g-units" class="deco"></g><g id="g-fx" class="deco"></g><g id="g-hit">${hit}</g>`;
+}
+function computeView(){
+  const canAct=st.phase==='deploy'&&!thinking&&!isAI(st.active);
+  let dep=new Set();
+  if(sel&&canAct&&st.bank[st.active]>=U[sel].cost) dep=deployable(st,st.active,sel);
+  let ghost=null, baseRes=null;
+  if(sel&&previewKey!=null&&dep.has(previewKey)){
+    baseRes=resolve(st);
+    ghost={id:-1,type:sel,owner:st.active,c:KC(previewKey),r:KR(previewKey),born:st.round};
+    st.units.push(ghost);
+  }
+  const res=fx?fx.res:resolve(st);
+  let focusCov=[], focusAura=[], focusOwner=0;
+  const fu=ghost||(inspectId!=null&&st.units.find(u=>u.id===inspectId));
+  if(fu){focusCov=cover(fu,res.occ);focusAura=auraCells(fu);focusOwner=fu.owner;}
+  if(ghost) st.units.pop();
+  return {canAct,dep,ghost,baseRes,res,focusCov,focusAura,focusOwner};
+}
+// attack arrows for a resolution: attacker colour, gold dashed for base auras and explosions; number = damage
+function arrowsSVG(hits){
+  let h='';
+  for(const x of hits){
+    const x1=cxp(KC(x.from)),y1=cyp(KR(x.from)),x2=cxp(KC(x.to)),y2=cyp(KR(x.to));
+    const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+    const sx=x1+ux*20,sy=y1+uy*20,ex=x2-ux*26,ey=y2-uy*26;
+    const isBase=x.from===BASE[0]||x.from===BASE[1], c=x.p<0||isBase?'pb':'p'+x.p, m=c==='pb'?'ahb':'ah'+x.p;
+    h+=`<line class="arrow ${c}" x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" marker-end="url(#${m})"/>`;
+    h+=`<text class="arrow-n ${c}" x="${((sx+ex)/2).toFixed(1)}" y="${((sy+ey)/2).toFixed(1)}">${x.amt}</text>`;
+  }
+  return h;
+}
+function tokenSVG(u,s,o){
+  const d=U[u.type], x=cxp(u.c), y=cyp(u.r), p=u.owner;
+  const notch=p===0?`M-6 -23 L6 -23 L0 -31Z`:`M-6 23 L6 23 L0 31Z`;
+  let h=`<g class="tok p${p}${o.cls||''}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><g class="anim">`;
+  if(o.iso) h+=`<circle class="tok-ring iso" r="29"/>`;
+  else if(o.isNew) h+=`<circle class="tok-ring new" r="29"/>`;
+  h+=`<path class="tok-notch" d="${notch}"/><circle class="tok-bg" r="24"/><text class="tok-g">${d.g}</text>`;
+  h+=`<g class="pill hp" transform="translate(-19,17)"><circle r="8.5"/><text>${s?s.hp:d.hp}</text></g>`;
+  if(d.atk>0) h+=`<g class="pill atk" transform="translate(19,17)"><circle r="8.5"/><text>${s?s.atk:d.atk}</text></g>`;
+  const arm=s?s.armor:(d.armor||0);
+  if(arm>0) h+=`<g class="pill arm" transform="translate(-19,-17)"><circle r="8"/><text>${arm}</text></g>`;
+  if(o.dmg>0) h+=`<g class="pill dmg" transform="translate(19,-17)"><circle r="9"/><text>−${o.dmg}</text></g>`;
+  if(o.dead) h+=`<path class="tok-x" d="M-13 -13 L13 13 M13 -13 L-13 13"/>`;
+  return h+`</g></g>`;
+}
+function renderBoard(v){
+  const {res,dep,ghost,focusCov,focusAura,focusOwner}=v;
+  let ov='';
+  if(showThreat&&st.phase==='deploy'){
+    const e=1-st.active, sum=new Map();
+    for(const u of st.units){if(u.owner!==e)continue;const d=U[u.type],s=res.stats.get(u.id);
+      if(!s||!d.sh||s.noAtk||s.atk<=0||d.onlyBase)continue;
+      for(const k of cover(u,res.occ)) sum.set(k,(sum.get(k)||0)+s.atk);}
+    for(const [k,n] of sum){const x=cxp(KC(k)),y=cyp(KR(k));
+      ov+=`<polygon class="ov-threat" points="${hexPts(x,y,S-3)}"/><text class="threat-n" x="${x-17}" y="${y-19}">${n}</text>`;}
+  }
+  for(const k of dep) ov+=`<polygon class="ov-dep p${st.active}" points="${hexPts(cxp(KC(k)),cyp(KR(k)),S-4)}"/>`;
+  if(fx) for(const p of [0,1]) for(const k of res.covers[p]) ov+=`<polygon class="fx-cov p${p}" points="${hexPts(cxp(KC(k)),cyp(KR(k)),S-3)}"/>`;
+  for(const k of focusCov) ov+=`<polygon class="ov-cov p${focusOwner}" points="${hexPts(cxp(KC(k)),cyp(KR(k)),S-3)}"/>`;
+  for(const k of focusAura) ov+=`<polygon class="ov-aura p${focusOwner}" points="${hexPts(cxp(KC(k)),cyp(KR(k)),S-7)}"/>`;
+  if(previewKey!=null&&dep.has(previewKey)) ov+=`<polygon class="ov-prev" points="${hexPts(cxp(KC(previewKey)),cyp(KR(previewKey)),S-2)}"/>`;
+  if(inspectId!=null){const u=st.units.find(u=>u.id===inspectId);if(u)ov+=`<polygon class="ov-prev" points="${hexPts(cxp(u.c),cyp(u.r),S-2)}"/>`;}
+  $('#g-ov').innerHTML=ov;
+
+  let un='';
+  for(const k in st.roads){const kk=+k;if(res.occ.has(kk))continue;const x=cxp(KC(kk)),y=cyp(KR(kk));
+    un+=`<line class="road p${st.roads[k]}" x1="${x-20}" y1="${y}" x2="${x+20}" y2="${y}"/>`;}
+  for(const pr of st.pending){const x=cxp(pr.c),y=cyp(pr.r);if(res.occ.has(pr.c*100+pr.r))continue;
+    un+=`<circle class="rev" cx="${x}" cy="${y}" r="20"/><text class="rev-t" x="${x}" y="${y}">骨</text>`;}
+  for(const p of [0,1]){
+    const k=BASE[p],x=cxp(KC(k)),y=cyp(KR(k));
+    const bd=(showPred||fx)?res.baseDmg[p]:0;
+    un+=`<g class="p${p}"><polygon class="base-hex" points="${hexPts(x,y,S-5)}" fill="var(--p${p}d)" stroke="currentColor"/>`+
+      `<text class="base-g" x="${x}" y="${y-5}" fill="currentColor">营</text><text class="base-hp" x="${x}" y="${y+18}">${Math.max(0,st.hp[p])}</text>`+
+      (bd>0?`<g class="pill dmg" transform="translate(${x+22},${y-15})"><circle r="10"/><text>−${bd}</text></g>`:'')+`</g>`;
+  }
+  const newIds=new Set(st.turnStack.map(t=>t.id));
+  for(const u of st.units){
+    const s=res.stats.get(u.id), dm=res.dmg.get(u.id)||0, dead=res.dead.has(u.id);
+    const showD=showPred||fx;
+    let cls='';
+    if(fx&&fx.stage===2&&dead) cls=' dying';
+    un+=tokenSVG(u,s,{cls,iso:s&&s.isolated&&!U[u.type].drop&&st.phase!=='over',isNew:newIds.has(u.id)&&st.phase==='deploy',dmg:showD?dm:0,dead:showD&&dead&&!(fx&&fx.stage===2)});
+  }
+  if(ghost){
+    const s=res.stats.get(ghost.id);
+    un+=tokenSVG(ghost,s,{cls:' ghost',dmg:res.dmg.get(ghost.id)||0,dead:res.dead.has(ghost.id)});
+  }
+  $('#g-units').innerHTML=un;
+
+  let f='';
+  if(fx&&fx.stage===1&&res.hits) f+=arrowsSVG(res.hits);
+  if(flash) f+=`<circle class="flash p${flash.p}" cx="${cxp(KC(flash.k))}" cy="${cyp(KR(flash.k))}" r="30"/>`;
+  if(fx&&fx.stage===1){
+    for(const u of st.units){const dm=res.dmg.get(u.id);if(dm>0)f+=`<text class="dmgf" x="${cxp(u.c)}" y="${cyp(u.r)-30}">−${dm}</text>`;}
+    for(const p of [0,1]) if(res.baseDmg[p]>0){const k=BASE[p];f+=`<text class="dmgf" x="${cxp(KC(k))}" y="${cyp(KR(k))-30}">−${res.baseDmg[p]}</text>`;}
+  }
+  $('#g-fx').innerHTML=f;
+}
+function miniSVG(type,s=9){
+  const d=U[type], sh=d.sh?SH[d.sh]:null, cov=new Set(), aura=new Set();
+  if(sh){ if(sh.line) for(let i=1;i<=sh.len;i++) cov.add(`${sh.line[0]*i},${sh.line[1]*i}`); else sh.cells.forEach(([a,b])=>cov.add(`${a},${b}`)); }
+  const ringR=d.aura==='deploy'?2:((d.aura||d.boom)?1:0);
+  let minC=-1,maxC=1,minR=-2,maxR=2;
+  const all=[...cov].map(x=>x.split(',').map(Number));
+  if(ringR===2){minC=-2;maxC=2;minR=-4;maxR=4;}
+  for(const [a,b] of all){minC=Math.min(minC,a);maxC=Math.max(maxC,a);minR=Math.min(minR,b);maxR=Math.max(maxR,b);}
+  if(ringR) for(let a=-ringR;a<=ringR;a++) for(let b=-2*ringR;b<=2*ringR;b++){ if(((a+b)%2+2)%2) continue; const dd=hd(0,0,a,b); if(dd>=1&&dd<=ringR) aura.add(`${a},${b}`);}
+  const h=Math.sqrt(3)*s, W=(maxC-minC)*1.5*s+2*s+2, Ht=(maxR-minR)*h/2+h+2;
+  let out=`<svg class="mini" width="${W.toFixed(0)}" height="${Ht.toFixed(0)}" viewBox="0 0 ${W.toFixed(1)} ${Ht.toFixed(1)}" aria-hidden="true">`;
+  for(let a=minC;a<=maxC;a++) for(let b=minR;b<=maxR;b++){
+    if(((a+b)%2+2)%2) continue;
+    const x=(a-minC)*1.5*s+s+1, y=(b-minR)*h/2+h/2+1, id=`${a},${b}`;
+    let c='m'; if(a===0&&b===0) c+=' o'; else if(cov.has(id)&&aura.has(id)) c+=' ca'; else if(cov.has(id)) c+=' c'; else if(aura.has(id)) c+=' a';
+    out+=`<polygon class="${c}" points="${hexPts(x,y,s-.6)}"/>`;
+  }
+  return out+'</svg>';
+}
+function unitHead(type,owner){
+  const d=U[type], c=CLS[d.cls];
+  const kws=(d.kw||[]).map(k=>`<span class="chip">${k}</span>`).join('');
+  return `<div class="ih"><span class="uc-tok p${owner}">${d.g}</span><div><h3>${d.n}</h3><div class="chips"><span class="chip cost">${d.cost} 费</span><span class="chip">${c.sym} ${c.n}</span>${kws}</div></div></div>`;
+}
+function unitBody(type){
+  const d=U[type], c=CLS[d.cls];
+  const rlabel=d.sh?SH[d.sh].label:(d.aura==='deploy'?'无攻击；虚线为可部署范围':(d.aura||d.boom?'无攻击；虚线为光环 / 爆炸范围':'无攻击'));
+  const ctr=d.cls==='M'?'奇术：不参与克制':`克制 ${c.beat}（伤害+1）· 被 ${c.by} 克制`;
+  return `<div class="statrow"><span>血<b>${d.hp}</b></span><span>攻<b>${d.onlyBase?d.atk+'*':d.atk}</b></span><span>护甲<b>${d.armor||0}</b></span></div>
+    <div class="rangebox">${miniSVG(type)}<p>${rlabel}</p></div><p class="desc">${d.d}</p><p class="counter">${ctr}</p>`;
+}
+function renderInfo(v){
+  const el=$('#info'); const {res,ghost,baseRes}=v;
+  if(ghost){
+    const dead=res.dead.has(ghost.id), dm=res.dmg.get(ghost.id)||0, s=res.stats.get(ghost.id), e=1-ghost.owner;
+    const killed=st.units.filter(u=>u.owner===e&&res.dead.has(u.id)).length-st.units.filter(u=>u.owner===e&&baseRes.dead.has(u.id)).length;
+    const lostMine=st.units.filter(u=>u.owner===ghost.owner&&res.dead.has(u.id)).length-st.units.filter(u=>u.owner===ghost.owner&&baseRes.dead.has(u.id)).length;
+    const bd=res.baseDmg[e]-baseRes.baseDmg[e];
+    const parts=[dead?`这个兵会阵亡（受 ${dm} / 血 ${s.hp}）`:`这个兵能活下来（受 ${dm} / 血 ${s.hp}）`];
+    if(killed>0) parts.push(`多击杀 ${killed} 个敌人`);
+    if(killed<0) parts.push(`少击杀 ${-killed} 个敌人`);
+    if(lostMine>0) parts.push(`连带 ${lostMine} 个友军阵亡`);
+    if(bd>0) parts.push(`对大本营 +${bd} 伤害`);
+    el.innerHTML=unitHead(ghost.type,ghost.owner)+unitBody(ghost.type)+`<div class="pred ${dead?'bad':'good'}">若现在结算：${parts.join('，')}。${FINE?'点击部署。':'再点一次同一格部署。'}</div>`;
+    return;
+  }
+  const u=inspectId!=null&&st.units.find(x=>x.id===inspectId);
+  if(u){
+    const s=res.stats.get(u.id), dm=res.dmg.get(u.id)||0, dead=res.dead.has(u.id), d=U[u.type];
+    const mods=[]; if(s.isolated&&!d.drop) mods.push('孤立（攻击−1）'); if(s.marked) mods.push('被标记（护甲−1）'); if(s.noAtk) mods.push('架设中，本回合不攻击');
+    el.innerHTML=unitHead(u.type,u.owner)+`<div class="statrow"><span>当前血<b>${s.hp}</b></span><span>攻<b>${s.atk}</b></span><span>护甲<b>${s.armor}</b></span></div>`+
+      (mods.length?`<p class="counter">${mods.join(' · ')}</p>`:'')+
+      `<div class="rangebox">${miniSVG(u.type)}<p>${d.sh?SH[d.sh].label:'无攻击'}</p></div><p class="desc">${d.d}</p>`+
+      (st.phase==='deploy'?`<div class="pred ${dead?'bad':(dm>0?'':'good')}">${NAMES[u.owner]}的单位 · 若现在结算：受到 ${dm} 点伤害，${dead?'阵亡':'存活'}</div>`:'');
+    return;
+  }
+  if(sel){el.innerHTML=unitHead(sel,st.active)+unitBody(sel)+(v.dep.size?`<div class="pred">高亮的格子可以部署。${FINE?'移到格子上预览结算结果。':'点一下格子预览，再点一次部署。'}</div>`:`<div class="pred bad">${st.bank[st.active]<U[sel].cost?'费用不足。':'现在没有可部署的格子。'}</div>`);return;}
+  el.innerHTML=`<div class="empty"><p><b>怎么玩</b></p><p>1. 在右下方「征兵」里选一个兵种，棋盘上会高亮可部署的格子（必须挨着连通的己方单位；大本营周围 2 格内随时可以放）。</p><p>2. 把鼠标移到格子上，可以预览这个兵的射程，以及现在结算时谁会死。</p><p>3. 双方都点「结束部署」后同时结算：伤害总和 ≥ 血量的单位阵亡。</p><p>点击棋盘上的单位可以查看它的射程和当前状态。</p></div>`;
+}
+function renderShop(v){
+  const p=st.active, bank=st.bank[p];
+  $('#shop-bank').textContent=`${NAMES[p]} 可用 ${bank} 费`;
+  const groups=[['A','克制远程'],['H','克制突击'],['R','克制重装'],['M','不参与克制']];
+  let h='';
+  for(const [cl,note] of groups){
+    h+=`<div class="shop-group"><div class="sg-h"><b>${CLS[cl].sym} ${CLS[cl].n}</b>${note}</div><div class="shop-grid">`;
+    for(const t of TYPES){const d=U[t];if(d.cls!==cl)continue;
+      const poor=d.cost>bank||!v.canAct;
+      h+=`<button class="uc${sel===t?' sel':''}${poor?' poor':''}" data-t="${t}" aria-pressed="${sel===t}"><span class="uc-tok p${p}">${d.g}</span><span class="uc-name">${d.n}</span><span class="uc-meta"><b>${d.cost}</b>费 血${d.hp} 攻${d.atk}</span></button>`;}
+    h+=`</div></div>`;
+  }
+  $('#shop').innerHTML=h;
+}
+function renderPlayers(){
+  for(const p of [0,1]){
+    const el=$('#pc'+p), hp=Math.max(0,st.hp[p]);
+    el.classList.toggle('active',st.phase==='deploy'&&st.active===p);
+    const pips=Array.from({length:BANK_CAP},(_,i)=>`<i class="${i<st.bank[p]?'on':''}"></i>`).join('');
+    const tags=(st.first===p?'<span class="tag">本回合先手</span>':'')+(isAI(p)?`<span class="tag">电脑·${LEVELS[st.aiLevels[p]]}</span>`:'');
+    el.innerHTML=`<div class="pc-head"><span class="dot"></span><b>${NAMES[p]}</b>${tags}</div>
+      <div class="hpbar"><i style="width:${hp/BASE_HP*100}%"></i><span>大本营 ${hp} / ${BASE_HP}</span></div>
+      <div class="bank"><div class="pips">${pips}</div><b>${st.bank[p]}</b></div>
+      <div class="sub">本回合收入 +${st.lastInc[p]} · 矿桥 ${mines(st,p)} · 场上 ${st.units.filter(u=>u.owner===p).length} 兵</div>`;
+  }
+}
+function renderPhase(){
+  const el=$('#phase');
+  if(st.phase==='over'){el.innerHTML=`第 ${st.round} 回合 · 对局结束 <span class="hint">${st.endNote||''}</span>`;return;}
+  if(st.phase==='resolve'){el.innerHTML=`第 ${st.round} 回合 · 同时结算中…`;return;}
+  if(st.phase==='confirm'){el.innerHTML=`第 ${st.round} 回合 · 电脑已部署完毕 <span class="hint">箭头是每次攻击，数字是伤害，红色 × 是会阵亡的兵；可以点单位查看，看完点「开始结算」（或按回车）</span>`;return;}
+  const a=st.active, ai=isAI(a);
+  el.innerHTML=`第 ${st.round} 回合 <span class="who p${a}">${NAMES[a]}</span> ${ai?'电脑思考中…':'部署中'} <span class="hint">${a===st.first?'先手，部署完交给对方':'后手，部署完开始结算'}${st.round>=FINALE?' · 决战：全体攻击+1':''} · 地图：${MAP.name}</span>`;
+}
+function renderButtons(v){
+  $('#btn-undo').disabled=!v.canAct||!st.turnStack.length;
+  $('#btn-video').disabled=!st.hist.length||st.phase==='resolve'||thinking;
+  const end=$('#btn-end'); end.disabled=!v.canAct&&st.phase!=='confirm';
+  end.textContent=st.phase==='confirm'?'开始结算':st.phase!=='deploy'?'结算中':(st.active===st.first?`结束部署，交给${NAMES[1-st.active]}`:'结束部署，开始结算');
+}
+function renderLog(){
+  $('#log').innerHTML=st.log.map(l=>`<li class="${l.cls||(l.side>=0?'s'+l.side:'')}">${l.text}</li>`).join('');
+}
+function renderHover(){
+  const el=$('#hoverline'); if(hoverKey==null){el.textContent=FINE?'把鼠标移到格子上查看地形；点击单位查看射程。':'点击单位查看射程；选兵后点格子预览，再点一次部署。';return;}
+  if(hoverKey===BASE[0]||hoverKey===BASE[1]){const p=hoverKey===BASE[0]?0:1;el.textContent=`${NAMES[p]}大本营 · ${Math.max(0,st.hp[p])} 血 · 每回合对相邻敌人造成 ${BASE_AURA} 点伤害`;return;}
+  const u=st.units.find(x=>keyOf(x)===hoverKey);
+  const road=st.roads[hoverKey]!==undefined?` · ${NAMES[st.roads[hoverKey]]}道路`:'';
+  el.textContent=(u?`${NAMES[u.owner]} ${U[u.type].n} · `:'')+TDESC[TER(hoverKey)]+road;
+}
+function render(){
+  const v=computeView();
+  renderPhase(); renderPlayers(); renderShop(v); renderBoard(v); renderInfo(v); renderButtons(v); renderLog(); renderHover();
+}
+function toast(text,p){
+  if(videoJob) return;
+  const t=$('#toast'); t.hidden=false; t.textContent=text; t.style.color=`var(--p${p})`;
+  t.style.animation='none'; void t.offsetWidth; t.style.animation='';
+  clearTimeout(toast._t); toast._t=setTimeout(()=>{t.hidden=true;},RM?400:1300);
+}
+function showOver(){
+  const w=st.winner;
+  $('#over-body').innerHTML=w<0?`<div class="big">平局</div><p>${st.endNote}</p>`:
+    `<div class="big" style="color:var(--p${w})">${NAMES[w]}胜利</div><p>${st.endNote}，共 ${st.round} 回合。</p>`;
+  $('#ov-over').hidden=false;
+}
+function buildCodex(){
+  $('#codex').innerHTML=TYPES.map(t=>{const d=U[t],c=CLS[d.cls];
+    return `<div class="cx">${miniSVG(t,8)}<h4>${d.n} <span class="cxm">${c.sym}${c.n}</span></h4><div class="cxm">${d.cost} 费 · 血 ${d.hp} · 攻 ${d.onlyBase?d.atk+'（仅大本营）':d.atk}${d.armor?' · 护甲 '+d.armor:''}</div><p>${d.sh?SH[d.sh].label+'。':''}${d.d}</p></div>`;}).join('');
+}
+
+/* ---------- input ---------- */
+function canAct(){return st.phase==='deploy'&&!thinking&&!isAI(st.active);}
+svg.addEventListener('pointermove',e=>{
+  const t=e.target.closest('[data-k]'); const k=t?+t.dataset.k:null;
+  if(k===hoverKey) return; hoverKey=k;
+  if(e.pointerType==='mouse'){previewKey=k;render();} else renderHover();
+});
+svg.addEventListener('pointerleave',e=>{hoverKey=null;if(e.pointerType==='mouse'){previewKey=null;render();}else renderHover();});
+svg.addEventListener('click',e=>{
+  const t=e.target.closest('[data-k]'); if(!t) return; const k=+t.dataset.k;
+  hoverKey=k;
+  if(sel&&canAct()&&st.bank[st.active]>=U[sel].cost&&deployable(st,st.active,sel).has(k)){
+    if(FINE||previewKey===k){place(st.active,sel,k);inspectId=null;previewKey=FINE?k:null;if(st.bank[st.active]<U[sel].cost)sel=null;}
+    else {previewKey=k;inspectId=null;}
+    render(); return;
+  }
+  const u=st.units.find(x=>keyOf(x)===k);
+  if(u){inspectId=inspectId===u.id?null:u.id;previewKey=FINE?k:null;}
+  else {inspectId=null;if(!FINE)previewKey=null;}
+  render();
+});
+$('#shop').addEventListener('click',e=>{
+  const b=e.target.closest('[data-t]'); if(!b) return;
+  sel=sel===b.dataset.t?null:b.dataset.t; inspectId=null; if(!FINE) previewKey=null; render();
+});
+$('#btn-undo').onclick=()=>{undo();render();};
+$('#btn-copy').onclick=e=>{
+  const b=e.currentTarget, data=JSON.stringify({game:'蜂巢兵棋',v:1,map:MAP.id,mapDef:MAPS.some(m=>m.id===MAP.id)?undefined:MAP,mode:st.mode,aiSides:st.aiSides,aiLevels:st.aiLevels,round:st.round,hp:st.hp,winner:st.winner,moves:st.hist});
+  const done=t=>{b.textContent=t;setTimeout(()=>{b.textContent='复制棋谱';},1600);};
+  (navigator.clipboard?navigator.clipboard.writeText(data):Promise.reject()).then(()=>done('已复制'),()=>{
+    const ta=document.createElement('textarea');ta.value=data;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();
+    let ok=false;try{ok=document.execCommand('copy');}catch(_){}ta.remove();done(ok?'已复制':'复制失败');
+  });
+};
+$('#btn-end').onclick=()=>{if(st.phase==='confirm')runResolve();else if(canAct())endTurn();};
+$('#tg-pred').onclick=e=>{showPred=!showPred;e.currentTarget.setAttribute('aria-pressed',showPred);render();};
+$('#tg-threat').onclick=e=>{showThreat=!showThreat;e.currentTarget.setAttribute('aria-pressed',showThreat);render();};
+$('#btn-codex').onclick=()=>{$('#ov-codex').hidden=false;};
+$('#btn-new').onclick=()=>{$('#ov-new').hidden=false;};
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('#'+b.dataset.close).hidden=true;});
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o&&o.id!=='ov-video')o.hidden=true;}));
+const pick={mode:'ai',side:'0',lvl:'hard',w0:'hard',w1:'normal',map:'valley'};
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+  pick.mode=b.dataset.mode;
+  document.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  $('#opt-ai').hidden=pick.mode!=='ai'; $('#opt-watch').hidden=pick.mode!=='watch';
+});
+document.querySelectorAll('.seg').forEach(g=>g.addEventListener('click',e=>{
+  const b=e.target.closest('[data-v]'); if(!b) return;
+  pick[g.dataset.opt]=b.dataset.v;
+  g.querySelectorAll('[data-v]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+}));
+const showMapDesc=()=>{const m=MAPS.find(x=>x.id===pick.map);$('#map-desc').textContent=pick.map==='random'?'每局随机生成一张新地图：大小、河流和渡口、岩壁、森林、高地、矿桥都随机。地图中心对称，双方地形完全一样。':(m?m.desc:'');};
+document.querySelector('[data-opt="map"]').addEventListener('click',()=>setTimeout(showMapDesc,0));
+showMapDesc();
+$('#btn-start').onclick=()=>{
+  $('#ov-new').hidden=true;
+  const map=pick.map==='random'?randomMap():pick.map;
+  if(pick.mode==='ai'){const me=+pick.side,sides=[false,false],lv=['hard','hard'];sides[1-me]=true;lv[1-me]=pick.lvl;newGame('ai',{aiSides:sides,aiLevels:lv,map});}
+  else if(pick.mode==='watch') newGame('watch',{aiSides:[true,true],aiLevels:[pick.w0,pick.w1],map});
+  else newGame('hotseat',{map});
+};
+$('#btn-again').onclick=()=>{$('#ov-over').hidden=true;newGame(st.mode,st.opts);};
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&st.phase==='confirm'&&![...document.querySelectorAll('.overlay')].some(o=>!o.hidden)){e.preventDefault();runResolve();return;}
+  if(e.key==='Escape'){const o=[...document.querySelectorAll('.overlay')].find(x=>!x.hidden);if(o){if(o.id!=='ov-video')o.hidden=true;return;}sel=null;inspectId=null;render();}
+});
+
+function newGame(mode,opts){
+  opts=Object.assign({map:'valley'},opts||{});
+  if(opts.map!==MAP.id||!CELLS.length){loadMap(opts.map);buildBoard();}
+  st=fresh(mode,opts); sel=null; previewKey=null; inspectId=null; fx=null; thinking=false;
+  startRound(); render(); maybeAI();
+}
+/* ---------- replay video ----------
+   Re-simulates the current game from its move list (the engine is deterministic), draws every step on a
+   canvas and records the canvas in real time with MediaRecorder. */
+function snap(s,extra){
+  return Object.assign({round:s.round,first:s.first,hp:s.hp.slice(),bank:s.bank.slice(),
+    units:s.units.map(u=>({id:u.id,type:u.type,owner:u.owner,c:u.c,r:u.r}))},extra);
+}
+function statsObj(res){const o={};for(const [id,v] of res.stats)o[id]={hp:v.hp,atk:v.atk,armor:v.armor};return o;}
+function buildReplay(){
+  const saved=st, frames=[], hist=saved.hist.slice();
+  silent=true;
+  try{
+    st=fresh(saved.mode,saved.opts); startRound();
+    for(let guard=0;guard<80;guard++){
+      const r=st.round;
+      frames.push(snap(st,{kind:'round',cap:`第 ${r} 回合 · ${NAMES[st.first]}先手`,stats:statsObj(resolve(st))}));
+      for(const p of [st.first,1-st.first]){
+        st.active=p;
+        for(const m of hist.filter(m=>m[0]===r&&m[1]===p)){
+          place(p,m[2],K(m[3],m[4]));
+          frames.push(snap(st,{kind:'place',k:K(m[3],m[4]),p,cap:`${NAMES[p]} 部署 ${U[m[2]].n}`,stats:statsObj(resolve(st))}));
+        }
+      }
+      if(r>=saved.round&&saved.phase!=='over'){frames.push(snap(st,{kind:'end',cap:'对局进行中',stats:statsObj(resolve(st))}));break;}
+      const res=resolve(st,true);
+      const ex={hits:res.hits,dmg:Object.fromEntries(res.dmg),dead:new Set(res.dead),baseDmg:res.baseDmg.slice(),stats:statsObj(res),cap:resolveSummary(st,res)};
+      frames.push(snap(st,Object.assign({kind:'resolve'},ex)),snap(st,Object.assign({kind:'die'},ex)));
+      commit(res);
+      if(st.phase==='over'){frames.push(snap(st,{kind:'end',cap:st.winner<0?'平局':`${NAMES[st.winner]}胜利`,p:st.winner,stats:statsObj(resolve(st))}));break;}
+      startRound();
+    }
+  } finally { st=saved; silent=false; }
+  return frames;
+}
+function vcolors(){
+  const cs=getComputedStyle(document.documentElement), g=n=>cs.getPropertyValue(n).trim();
+  return {bg:g('--bg'),panel:g('--panel'),panel2:g('--panel2'),line:g('--line'),fg:g('--fg'),muted:g('--muted'),ink:g('--ink'),
+    p:[g('--p0'),g('--p1')],pd:[g('--p0d'),g('--p1d')],danger:g('--danger'),gold:g('--gold'),
+    t:{plain:g('--t-plain'),forest:g('--t-forest'),hill:g('--t-hill'),river:g('--t-river'),bridge:g('--t-bridge'),mine:g('--t-bridge'),rock:g('--t-rock')}};
+}
+function hexPath(ctx,x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i;ctx[i?'lineTo':'moveTo'](x+r*Math.cos(a),y+r*Math.sin(a));}ctx.closePath();}
+function pill(ctx,x,y,r,fill,text,color){ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=fill;ctx.fill();ctx.fillStyle=color;ctx.font=`700 ${r*1.25}px ${FONT_B}`;ctx.fillText(text,x,y+0.5);}
+const FONT_D='"Noto Serif SC","Songti SC",serif', FONT_B='"Noto Sans SC","PingFang SC",sans-serif';
+function drawFrame(ctx,f,t,C,events){
+  const W=1280,H=720;
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const sc=Math.min(720/VBW,(H-30)/VBH), oy=(H-VBH*sc)/2;
+  ctx.save(); ctx.translate(20,oy); ctx.scale(sc,sc);
+  for(const c of CELLS){hexPath(ctx,cxp(c.c),cyp(c.r),S-1.2);ctx.fillStyle=C.t[TER(c.k)];ctx.fill();}
+  for(const c of CELLS) if(TER(c.k)==='mine'){const x=cxp(c.c),y=cyp(c.r);ctx.beginPath();ctx.moveTo(x,y-12);ctx.lineTo(x+9,y);ctx.lineTo(x,y+12);ctx.lineTo(x-9,y);ctx.closePath();ctx.fillStyle=C.gold;ctx.fill();}
+  const resolving=f.kind==='resolve'||f.kind==='die';
+  for(const p of [0,1]){
+    const x=cxp(KC(BASE[p])),y=cyp(KR(BASE[p]));
+    hexPath(ctx,x,y,S-5);ctx.fillStyle=C.pd[p];ctx.fill();ctx.lineWidth=3;ctx.strokeStyle=C.p[p];ctx.stroke();
+    ctx.fillStyle=C.p[p];ctx.font=`900 24px ${FONT_D}`;ctx.fillText('营',x,y-5);
+    ctx.fillStyle=C.fg;ctx.font=`700 12px ${FONT_B}`;ctx.fillText(String(Math.max(0,f.hp[p])),x,y+18);
+    if(resolving&&f.baseDmg[p]>0) pill(ctx,x+22,y-15,11,C.danger,'−'+f.baseDmg[p],'#fff');
+  }
+  for(const u of f.units){
+    const d=U[u.type], x=cxp(u.c), y=cyp(u.r), stt=f.stats&&f.stats[u.id];
+    const dead=resolving&&f.dead.has(u.id);
+    let scale=1, alpha=1;
+    if(f.kind==='place'&&u.c*100+u.r===f.k){scale=1+0.6*Math.max(0,1-t*3);}
+    if(f.kind==='die'&&dead){alpha=Math.max(0,1-t*1.4);scale=1-0.5*t;}
+    ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y); ctx.scale(scale,scale);
+    if(f.kind==='place'&&u.c*100+u.r===f.k){ctx.beginPath();ctx.arc(0,0,30,0,7);ctx.lineWidth=4;ctx.strokeStyle=C.p[u.owner];ctx.globalAlpha=alpha*(1-t*0.7);ctx.stroke();ctx.globalAlpha=alpha;}
+    ctx.beginPath();ctx.moveTo(-6,u.owner===0?-23:23);ctx.lineTo(6,u.owner===0?-23:23);ctx.lineTo(0,u.owner===0?-31:31);ctx.closePath();ctx.fillStyle=C.p[u.owner];ctx.fill();
+    ctx.beginPath();ctx.arc(0,0,24,0,7);ctx.fillStyle=C.p[u.owner];ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=C.bg;ctx.stroke();
+    ctx.fillStyle=C.ink;ctx.font=`900 22px ${FONT_D}`;ctx.fillText(d.g,0,1);
+    pill(ctx,-19,17,8.5,'#b8473f',String(stt?stt.hp:d.hp),'#fff');
+    if(d.atk>0) pill(ctx,19,17,8.5,C.ink,String(stt?stt.atk:d.atk),C.fg);
+    if(resolving&&f.dmg[u.id]>0) pill(ctx,19,-17,9,C.danger,'−'+f.dmg[u.id],'#fff');
+    if(f.kind==='resolve'&&dead){ctx.lineWidth=4;ctx.lineCap='round';ctx.strokeStyle=C.danger;ctx.beginPath();ctx.moveTo(-13,-13);ctx.lineTo(13,13);ctx.moveTo(13,-13);ctx.lineTo(-13,13);ctx.stroke();}
+    ctx.restore();
+  }
+  if(f.kind==='resolve'){
+    const a=Math.min(1,t*4);
+    for(const h of f.hits){
+      const x1=cxp(KC(h.from)),y1=cyp(KR(h.from)),x2=cxp(KC(h.to)),y2=cyp(KR(h.to));
+      const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L, sx=x1+ux*20,sy=y1+uy*20,ex=x2-ux*24,ey=y2-uy*24;
+      const isBase=h.from===BASE[0]||h.from===BASE[1], col=h.p<0||isBase?C.gold:C.p[h.p];
+      ctx.globalAlpha=0.9*a; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2.6;
+      ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(ex+ux*6,ey+uy*6);ctx.lineTo(ex-uy*5-ux*4,ey+ux*5-uy*4);ctx.lineTo(ex+uy*5-ux*4,ey-ux*5-uy*4);ctx.closePath();ctx.fill();
+      ctx.font=`900 12px ${FONT_B}`;ctx.lineWidth=3;ctx.strokeStyle=C.bg;ctx.strokeText(String(h.amt),(sx+ex)/2,(sy+ey)/2);ctx.fillText(String(h.amt),(sx+ex)/2,(sy+ey)/2);
+      ctx.globalAlpha=1;
+    }
+  }
+  ctx.restore();
+  // side panel
+  const px=780;
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle=C.fg; ctx.font=`900 34px ${FONT_D}`; ctx.fillText(`蜂巢兵棋 · ${MAP.name}`,px,70);
+  ctx.fillStyle=C.muted; ctx.font=`500 18px ${FONT_B}`; ctx.fillText(`第 ${f.round} 回合${f.round>=FINALE?' · 决战':''}`,px,104);
+  for(const p of [0,1]){
+    const y=140+p*70, hp=Math.max(0,f.hp[p]);
+    ctx.fillStyle=C.p[p]; ctx.font=`700 20px ${FONT_D}`; ctx.fillText(NAMES[p],px,y+18);
+    ctx.fillStyle=C.panel2; ctx.fillRect(px+70,y+2,300,22);
+    ctx.fillStyle=C.pd[p]; ctx.fillRect(px+70,y+2,300*hp/BASE_HP,22);
+    ctx.fillStyle=C.fg; ctx.font=`700 14px ${FONT_B}`; ctx.textAlign='center'; ctx.fillText(`大本营 ${hp} / ${BASE_HP}`,px+220,y+19); ctx.textAlign='left';
+    ctx.fillStyle=C.gold; ctx.fillText(`${f.bank[p]} 费`,px+384,y+19);
+  }
+  ctx.fillStyle=f.p===0||f.p===1?C.p[f.p]:C.fg; ctx.font=`900 26px ${FONT_B}`;
+  wrapText(ctx,f.cap,px,310,460,34,3);
+  ctx.fillStyle=C.muted; ctx.font=`500 15px ${FONT_B}`; ctx.fillText('最近',px,440);
+  ctx.font=`400 15px ${FONT_B}`;
+  events.slice(-8).forEach((e,i)=>wrapText(ctx,e,px,468+i*28,460,20,1));
+}
+function wrapText(ctx,text,x,y,maxW,lh,maxLines){
+  let line='',n=0;
+  for(const ch of text){
+    if(ctx.measureText(line+ch).width>maxW){ctx.fillText(line,x,y+n*lh);n++;line=ch;if(n>=maxLines)return;}
+    else line+=ch;
+  }
+  if(line&&n<maxLines) ctx.fillText(line,x,y+n*lh);
+}
+// hand a generated file to the viewer: the Claude viewer's save prompt when available, otherwise a normal browser download
+async function saveFile(name,blob){
+  let dl=null;
+  try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(_){}
+  if(dl){try{await dl.save({filename:name,data:blob});return 'saved';}catch(e){return e&&e.code==='declined'?'declined':'failed';}}
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+  return 'saved';
+}
+let videoJob=null;
+async function makeVideo(){
+  if(videoJob||!st.hist.length) return;
+  const canvas=$('#video-canvas'), ctx=canvas.getContext('2d'), msg=$('#video-msg'), bar=$('#video-bar');
+  $('#ov-video').hidden=false; bar.style.width='0';
+  const types=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  const mime=window.MediaRecorder&&canvas.captureStream?types.find(t=>MediaRecorder.isTypeSupported(t)):null;
+  if(!mime){msg.textContent='这个浏览器不支持录制视频，请换用最新版的 Chrome、Edge 或 Safari。';return;}
+  msg.textContent='正在从第 1 回合重新演一遍这局并录制，请保持这个页面在前台。';
+  try{await document.fonts.ready;}catch(_){}
+  const frames=buildReplay(), C=vcolors();
+  const DUR={round:900,place:650,resolve:2600,die:900,end:3000};
+  const times=[]; let total=0; for(const f of frames){times.push(total);total+=DUR[f.kind];}
+  const job={cancel:false}; videoJob=job;
+  const rec=new MediaRecorder(canvas.captureStream(30),{mimeType:mime,videoBitsPerSecond:5e6}), chunks=[];
+  rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  const stopped=new Promise(r=>{rec.onstop=r;});
+  drawFrame(ctx,frames[0],0,C,[]);
+  rec.start(500);
+  const t0=performance.now();
+  await new Promise(done=>{
+    let i=0;
+    const tick=()=>{
+      if(job.cancel){done();return;}
+      const el=performance.now()-t0;
+      while(i<frames.length-1&&times[i+1]<=el) i++;
+      const f=frames[i];
+      const events=[]; for(let j=Math.max(0,i-30);j<=i;j++) if(frames[j].kind!=='round'&&frames[j].kind!=='die') events.push(frames[j].cap);
+      drawFrame(ctx,f,Math.min(1,(el-times[i])/DUR[f.kind]),C,events);
+      bar.style.width=Math.min(100,el/total*100)+'%';
+      if(el>=total){done();return;}
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  rec.stop(); await stopped; videoJob=null;
+  if(job.cancel){$('#ov-video').hidden=true;return;}
+  const ext=mime.startsWith('video/mp4')?'mp4':'webm';
+  msg.textContent='录制完成，正在保存…';
+  const r=await saveFile(`hexwar-replay-round${st.round}.${ext}`,new Blob(chunks,{type:mime.split(';')[0]}));
+  msg.textContent=r==='saved'?`回放视频已保存（${ext.toUpperCase()}）。`:(r==='declined'?'已取消保存。':'这个页面里无法保存文件，请用本地文件打开游戏后再试。');
+  $('#btn-video-cancel').textContent='关闭';
+}
+$('#btn-video').onclick=()=>{$('#btn-video-cancel').textContent='取消';makeVideo();};
+$('#btn-video2').onclick=()=>{$('#ov-over').hidden=true;$('#btn-video-cancel').textContent='取消';makeVideo();};
+$('#btn-video-cancel').onclick=()=>{if(videoJob)videoJob.cancel=true;else $('#ov-video').hidden=true;};
+// animation speed
+const speedBtns=[...document.querySelectorAll('#speed [data-s]')];
+const showSpeed=()=>speedBtns.forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===speed));
+speedBtns.forEach(b=>b.onclick=()=>{speed=b.dataset.s;showSpeed();try{localStorage.setItem('hexwar-speed',speed);}catch(_){}});
+showSpeed();
+if(typeof __HEXWAR_EXPORT==='function') __HEXWAR_EXPORT({get st(){return st;},newGame,aiGen,place,endTurn,U,TYPES,resolve,
+  getEW:()=>({...EW}),setEW:w=>{EW=w;},deployable,cloneSim,mctsStats:()=>planMCTS.last,strikeOptions,bestCombo,killSeeds,
+  loadMap,MAPS,getMap:()=>MAP,dims:()=>({cols:COLS,rows:ROWS}),CELLS,BASE,TER,NB1,NB2,K,KC,KR,keyOf,cover,income,mines,fieldValue,
+  simEndRound,distK,TIDX,buildOcc,connect,evalBoard,consts:{FINALE,BANK_CAP,BASE_HP}});   // used by the self-play tuning scripts in train/
+buildCodex(); newGame('hotseat');
+})();
+</script>
