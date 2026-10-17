@@ -5,6 +5,7 @@
 import sys, os, base64, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 src, wpath, out = sys.argv[1], sys.argv[2], sys.argv[3]
+GEN = sys.argv[sys.argv.index('--gen') + 1] if '--gen' in sys.argv else 'null'
 html = open(src, encoding='utf8').read()
 lib = '\n'.join(open(os.path.join(HERE, f), encoding='utf8').read().replace("if(typeof module!=='undefined')", "if(false)")
                 for f in ['nn.js', 'fastlegal.js', 'gameweb.js', 'mctsweb.js', 'threat.js', 'aiworker.js'])
@@ -66,7 +67,7 @@ function nnTurn(){
     next();
   });
 }
-let nnGen=null; const NNCFG={blend:0.5,kappa:20,threat:true};   // half network, half hand-written evaluation (+ the ram-behind-the-base check)
+let nnGen=null; const NN_BUILT_GEN=__GEN__; const NNCFG={blend:0.5,kappa:20,threat:true};   // half network, half hand-written evaluation (+ the ram-behind-the-base check)
 async function nnFetchNet(){
   try{
     const info=await (await fetch('/api/net-info',{cache:'no-store'})).json();
@@ -83,12 +84,35 @@ async function nnCheckUpdate1(){   // at each new game: switch to a newer promot
   const e=document.getElementById('nn-status'); if(e) e.textContent=`（已更新到第 ${nnGen} 代网络）`;
   toast(`宗师已更新到第 ${nnGen} 代`,-1);
 }
-function nnReport(){   // send every finished game against 宗师 to the training server, as training data
+function nnReport(){   // every finished game against 宗师 becomes training data
   if(!st||st.phase!=='over'||st.nnReported||!st.aiLevels.some((l,p)=>l==='neural'&&st.aiSides[p])||st.aiSides.every(x=>x)) return;
   st.nnReported=true;
   const rec={game:'蜂巢兵棋',v:1,map:MAP.id,mapDef:MAPS.some(m=>m.id===MAP.id)?undefined:MAP,mode:st.mode,aiSides:st.aiSides,aiLevels:st.aiLevels,
-    round:st.round,hp:st.hp,winner:st.winner,nnGen,nnCfg:NNCFG,moves:st.hist};
-  fetch('/api/game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)}).catch(()=>{});
+    round:st.round,hp:st.hp,winner:st.winner,nnGen:nnGen??NN_BUILT_GEN,nnCfg:NNCFG,moves:st.hist};
+  if(nnGen!=null){   // served by the training server on the training machine: hand it over directly
+    fetch('/api/game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)}).catch(()=>{});
+    return;
+  }
+  // the public page: a player who beat 宗师 can send the game in as a GitHub issue (one click, needs a GitHub account)
+  const human=st.aiSides.findIndex(a=>!a);
+  if(st.winner!==human) return;
+  nnIssueButton(rec);
+}
+async function nnIssueButton(rec){
+  let code;
+  try{
+    const z=new Blob([JSON.stringify(rec)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const b=new Uint8Array(await new Response(z).arrayBuffer()); let bin=''; for(const x of b) bin+=String.fromCharCode(x);
+    code=btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }catch(e){ return; }
+  const name=MAP.name||MAP.id, title=`[宗师棋谱] 玩家获胜 · ${name} · ${rec.round} 回合`;
+  const body=`这是一局战胜「宗师」的对局记录，会被用来训练下一代 AI。直接点 Submit 提交即可，不用修改。\n\n`+
+    `地图：${name}　回合：${rec.round}　大本营：${rec.hp.join(' : ')}　宗师网络：第 ${rec.nnGen??'?'} 代\n\n\`\`\`hexwar-record\n${code}\n\`\`\`\n`;
+  const url='https://github.com/pphy96826-coder/hexwar/issues/new?title='+encodeURIComponent(title)+'&body='+encodeURIComponent(body);
+  const row=document.querySelector('#ov-over .row'); if(!row||document.getElementById('btn-issue')) return;
+  const a=document.createElement('a'); a.id='btn-issue'; a.className='btn'; a.href=url; a.target='_blank'; a.rel='noopener';
+  a.textContent='提交棋谱，帮宗师变强'; a.title='在 GitHub 上提交这局的记录（需要 GitHub 账号），它会成为下一代 AI 的训练数据';
+  row.prepend(a);
 }
 if(typeof __HEXWAR_EXPORT!=='function'&&typeof HexAI!=='undefined'){   // the page itself (not the training sandbox, not a search worker)
   (async()=>{
@@ -103,14 +127,14 @@ if(typeof __HEXWAR_EXPORT!=='function'&&typeof HexAI!=='undefined'){   // the pa
       const n=Math.max(1,Math.min(4,Math.floor((navigator.hardwareConcurrency||4)/2)));
       const ok=await HexAI.start(document.getElementById('nnlib').textContent,main,bin,n,NNCFG);   // half network, half the hand-written threat-aware evaluation: 20-4 vs 10-14 against 大师
       if(!ok||!HexAI.gpu){ say('（无法启用显卡，宗师会改用大师）'); return; }
-      say(`（显卡已就绪，${n} 个搜索线程${nnGen!=null?`，第 ${nnGen} 代网络（训练中，自动更新）`:''}）`);
+      say(`（显卡已就绪，${n} 个搜索线程${nnGen!=null?`，第 ${nnGen} 代网络（训练中，自动更新）`:(NN_BUILT_GEN!=null?`，第 ${NN_BUILT_GEN} 代网络`:'')}）`);
       if(st) HexAI.setMap(MAP.id,MAP);
       if(st&&isAI(st.active)&&!thinking) maybeAI(); else nnLast='', nnPonder();
     }catch(e){ console.warn(e); say('（宗师启动失败，改用大师）'); }
   })();
 }
 '''
-sub("function maybeAI(){", glue + "function maybeAI(){")
+sub("function maybeAI(){", glue.replace('__GEN__', GEN) + "function maybeAI(){")
 sub("function showOver(){", "function showOver(){\n  nnReport();")
 sub("  if(nnOn()) HexAI.setMap(MAP.id,MAP);\n", "  if(nnOn()){ HexAI.setMap(MAP.id,MAP); nnCheckUpdate(); }\n")
 if '--arena' in sys.argv:   # test build: ?arena=N plays N headless games, 宗师 vs 大师, sides and maps alternating
