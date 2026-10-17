@@ -28,8 +28,8 @@ def valid_win(g):
 
 def once(seen):
     # the system curl (this Python build has no CA certificates of its own)
-    out = subprocess.run(['curl', '-sfL', '--max-time', '30', '-H', 'Accept: application/vnd.github+json', '-H', 'User-Agent: hexwar-collector', API],
-                         capture_output=True, check=True).stdout
+    cmd = ['curl', '-sfL', '--max-time', '30', '-H', 'Accept: application/vnd.github+json', '-H', 'User-Agent: hexwar-collector', API]
+    out = subprocess.run(cmd, capture_output=True, check=True).stdout   # uses the system's network settings as they are
     issues = json.loads(out)
     new = 0
     for it in issues:
