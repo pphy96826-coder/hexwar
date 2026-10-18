@@ -154,6 +154,12 @@ if(isMainThread){
         const c=[]; for(let j=0;j<root.N.length;j++) if(root.N[j]>=(1-ne)*mx) c.push(j);
         i=c[Math.floor(Math.random()*c.length)];
       }
+      if(!temp&&side.openQ&&s.round<=(side.openRounds||1)){   // opening variety: random among moves whose win estimate is within openQ of the best
+        let tot=0; for(const n of root.N) tot+=n;
+        const ok=[]; let qb=-9;
+        for(let j=0;j<root.N.length;j++) if(root.N[j]>=Math.max(8,0.03*tot)){ const q=root.W[j]/root.N[j]; ok.push([j,q]); if(q>qb) qb=q; }
+        const c=ok.filter(([,q])=>q>=qb-side.openQ).map(x=>x[0]); if(c.length) i=c[Math.floor(Math.random()*c.length)];
+      }
       if(cfg.recordOpening&&s.round<=2) (opening=opening||[]).push(root.acts[i]);
       const nxt=M.child(root,i);
       // keep the subtree for whoever moves next if it is the same player; otherwise start fresh next time

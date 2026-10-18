@@ -74,6 +74,16 @@ def head_to_head(gen, online):
     if not m: raise RuntimeError('head-to-head failed: ' + (r.stderr or r.stdout)[-300:])
     w, l, d = map(int, m.groups()); return (w + d / 2) / max(1, w + l + d), f'{w}-{l}-{d}'
 
+def watchdog():
+    """restart training or the local play server if they stopped (unless training was stopped on purpose)"""
+    alive = lambda pat: subprocess.run(['pgrep', '-f', pat], capture_output=True).returncode == 0
+    if not alive('train/az/run_forever.sh') and not alive('train/az/train.py') and not os.path.exists(os.path.join(HERE, 'out', 'STOP')):
+        subprocess.Popen([os.path.join(HERE, 'run_forever.sh')], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        log('watchdog: training was not running, restarted it')
+    if subprocess.run(['lsof', '-nP', '-iTCP:8765', '-sTCP:LISTEN'], capture_output=True).returncode != 0:
+        subprocess.Popen([sys.executable, os.path.join(HERE, 'server.py'), '8765'], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        log('watchdog: local play server was not running, restarted it')
+
 def load_state():
     return json.load(open(STATE)) if os.path.exists(STATE) else {}
 def save_state(st): json.dump(st, open(STATE, 'w'))
@@ -98,6 +108,8 @@ def main():
     publish(st['online_gen'], f'Page update for the online version (generation {st["online_gen"]}): players who beat 宗师 can send the game in as training data.')
     last_push = 0
     while True:
+        try: watchdog()
+        except Exception as e: log(f'watchdog failed: {e}')
         try:
             gen = json.load(open(os.path.join(WEB, 'net_best.json'))).get('gen')
             if gen is not None and gen != st['online_gen'] and str(gen) not in st['tested'] and time.time() - last_push >= MIN_GAP:
