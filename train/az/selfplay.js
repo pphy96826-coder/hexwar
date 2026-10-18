@@ -194,10 +194,13 @@ if(isMainThread){
   } else
   (async()=>{
     let left=games, gi=0;
+    // cfg.mapList: play cfg.perMap games on each listed map (map ids or map objects), maps shared out over the workers
+    const myMaps=cfg.mapList?cfg.mapList.filter((_,i)=>i%NWK===wid):null;
+    if(myMaps) left=myMaps.length*cfg.perMap;
     while(left>0){
       // one wave: up to cfg.parallel games sharing one map (the engine holds one map per worker)
-      const n=Math.min(left,cfg.parallel||16); left-=n;
-      const mp=cfg.maps==='fixed'?FIXED[(wid+gi)%3]:(Math.random()<(cfg.fixedShare??0.35)?FIXED[Math.floor(Math.random()*3)]:randomMap());
+      const n=myMaps?cfg.perMap:Math.min(left,cfg.parallel||16); left-=n;
+      const mp=myMaps?myMaps.shift():cfg.maps==='fixed'?FIXED[(wid+gi)%3]:(Math.random()<(cfg.fixedShare??0.35)?FIXED[Math.floor(Math.random()*3)]:randomMap());
       E.loadMap(mp); const mapName=typeof mp==='string'?mp:mp.id;
       const runs=[];
       for(let j=0;j<n;j++,gi++){
@@ -213,7 +216,7 @@ if(isMainThread){
       }
       for(const r of runs){
         const res=r.res, aWinner=res.winner<0?-1:((res.winner===0)!==r.swap?0:1);   // 0 = sides[0] won
-        parentPort.postMessage({type:'result',r:{map:mapName,winner:aWinner,rounds:res.rounds}});
+        parentPort.postMessage({type:'result',r:{map:mapName,winner:aWinner,rounds:res.rounds,pw:res.winner}});   // pw: winning player (0 = 青, first in round 1)
         if(res.samples.length){ const b=packSamples(res.samples,res.winner); parentPort.postMessage({type:'data',buf:b},[b.buffer]); }
       }
     }
