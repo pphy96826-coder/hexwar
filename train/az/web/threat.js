@@ -31,34 +31,43 @@ function makeThreat(E){
     const path=[tgt]; let k=tgt; while(P[k]>=0){k=P[k]; if(free(k)) path.unshift(k);}
     return {n:best,path};
   }
-  // correction (in the hand evaluation's units) for player p in state s, after this turn resolves
+  // correction (in the hand evaluation's units) for player p in state s, after this turn resolves.
+  // Each side's ram threat gets an arrival time (0 = hitting from the coming resolution, 1 = next round, ...) and a
+  // finish time = arrival + rounds the ram needs to bring the other base down (4 a round). Only the faster threat
+  // counts in full: a slower counter-attack does not cancel it (the AI used to race when it had to defend).
   function correction(s,p){
     const e=1-p, res=E.resolve(s), alive=s.units.filter(u=>!res.dead.has(u.id));
     const post=Object.assign({},s,{round:s.round+1,units:alive,placed:0}), occPost=E.buildOcc(post), occNow=res.occ;
     const hp=[s.hp[0]-res.baseDmg[0],s.hp[1]-res.baseDmg[1]];
     const first=(s.round-1)%2, toMove=s.mover?1-first:first;
-    let c=0;
+    const T={};   // per attacker q: {t: threat strength, at: arrival time}
     for(const q of [p,e]){
-      const sg=q===p?1:-1, o=1-q;
+      const o=1-q; T[q]={t:0,at:Infinity};
       if(hp[o]<=0) continue;
       const adj=E.NB1.get(E.BASE[o]);
-      let t=alive.some(u=>u.owner===q&&u.type==='ram'&&adj.includes(u.c*100+u.r))?1.2:0;
-      if(!t){
-        const bank1=Math.min(E.consts.BANK_CAP,s.bank[q]+E.income(s.round+1)+E.mines(post,q));
-        const bank2=Math.min(E.consts.BANK_CAP,bank1+E.income(s.round+2));
-        if(bank2>=RAM){
-          const need=ramReach(post,q,occPost).n*CHAIN+RAM;
-          if(need<=bank1) t=1; else if(need<=bank2) t=0.45;
-          // q may still deploy in this round, before it resolves: chain now from the current board, ram now or next turn
-          if(t<1&&(q===toMove||(!s.mover&&q===1-first))){
-            const now=s.bank[q], chain=ramReach(s,q,occNow).n*CHAIN;
-            if(chain+RAM<=now) t=1;
-            else if(chain<=now&&RAM<=Math.min(E.consts.BANK_CAP,now-chain+E.income(s.round+1))) t=Math.max(t,0.8);
-          }
-        }
+      if(alive.some(u=>u.owner===q&&u.type==='ram'&&adj.includes(u.c*100+u.r))){ T[q]={t:1.2,at:0}; continue; }
+      const bank1=Math.min(E.consts.BANK_CAP,s.bank[q]+E.income(s.round+1)+E.mines(post,q));
+      const bank2=Math.min(E.consts.BANK_CAP,bank1+E.income(s.round+2));
+      if(bank2<RAM) continue;
+      const need=ramReach(post,q,occPost).n*CHAIN+RAM;
+      if(need<=bank1) T[q]={t:1,at:1}; else if(need<=bank2) T[q]={t:0.45,at:2};
+      // q may still deploy in this round, before it resolves: chain now from the current board, ram now or next turn
+      if(q===toMove||(!s.mover&&q===1-first)){
+        const now=s.bank[q], chain=ramReach(s,q,occNow).n*CHAIN;
+        if(chain+RAM<=now) T[q]={t:1,at:0};
+        else if(chain<=now&&RAM<=Math.min(E.consts.BANK_CAP,now-chain+E.income(s.round+1))&&T[q].at>1) T[q]={t:0.8,at:1};
       }
+    }
+    // damage per round once the ram is in: 4 from the ram plus what q's units already deal to that base
+    const fin=q=>T[q].at+Math.ceil(Math.max(1,hp[1-q])/(4+res.baseDmg[1-q]));
+    let c=0;
+    for(const q of [p,e]){
+      if(!T[q].t) continue;
+      const o=1-q, sg=q===p?1:-1, other=1-q;
+      // slower than the other side's threat: it will not land in time to matter much
+      const slow=T[other].t&&fin(q)>fin(other)?0.25:1;
       // a ram behind a base keeps hitting it every round: worth several rounds of base damage
-      c+=sg*t*Math.min(hp[o],16)*1.1;
+      c+=sg*slow*T[q].t*Math.min(hp[o],16)*1.1;
     }
     return c;
   }
