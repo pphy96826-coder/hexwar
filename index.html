@@ -1027,7 +1027,13 @@ const HexAI=(()=>{
       const left=turnMs-(performance.now()-t0), budget=Math.max(700,d===0?left*0.35:left*0.3);
       const {tot}=await merged({type:'think',ms:budget});
       const arr=[...tot].sort((a,b)=>b[1].n-a[1].n);
-      const pick=arr.length?arr[0][0]:END;
+      // not predictable: a random choice among near-equal moves (visits within 10% of the best, win estimate within 0.02)
+      let pick=END;
+      if(arr.length){
+        const [,b0]=arr[0], q0=b0.n?b0.w/b0.n:0;
+        const near=arr.filter(([,t])=>t.n>=0.9*b0.n&&Math.abs((t.n?t.w/t.n:0)-q0)<=0.02);
+        pick=near[Math.floor(Math.random()*near.length)][0];
+      }
       all({type:'advance',a:pick});
       if(pick===END){ aiEnded=true; break; }
       out.push([TYPES[Math.floor(pick/10000)],pick%10000]);

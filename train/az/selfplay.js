@@ -120,7 +120,7 @@ if(isMainThread){
   }
   // one game as a generator yielding network requests {s,idx,slot}
   function* game(sides){   // sides[p] = {slot} for the network, or {hand:level}
-    let s=G.newState(); const roots=[null,null]; const samples=[]; let decisions=0;
+    let s=G.newState(); const roots=[null,null]; const samples=[]; let decisions=0, opening=null;
     while(!s.over){
       const p=G.toMove(s), side=sides[p];
       if(side.hand){
@@ -147,12 +147,19 @@ if(isMainThread){
       if(cfg.mode==='selfplay'){ const pol=M.policy(root), e=G.encode(s); let n=0,w=0; for(let i=0;i<root.N.length;i++){n+=root.N[i];w+=root.W[i];}
         samples.push({x:e.x,H:e.H,W:e.W,p,idx:pol.idx,pi:pol.p,q:n?w/n:0}); }
       const temp=(cfg.mode==='selfplay'&&s.round<=(cfg.tempRounds||3))?1:(cfg.mode==='arena'&&decisions<(cfg.arenaRandom||2)?1:0);
-      const i=M.choose(root,temp); decisions++;
+      let i=M.choose(root,temp); decisions++;
+      const ne=side.nearEqual??cfg.nearEqual;
+      if(!temp&&ne){   // pick at random among near-equal moves (visits within ne of the best)
+        let mx=0; for(const n of root.N) if(n>mx) mx=n;
+        const c=[]; for(let j=0;j<root.N.length;j++) if(root.N[j]>=(1-ne)*mx) c.push(j);
+        i=c[Math.floor(Math.random()*c.length)];
+      }
+      if(cfg.recordOpening&&s.round<=2) (opening=opening||[]).push(root.acts[i]);
       const nxt=M.child(root,i);
       // keep the subtree for whoever moves next if it is the same player; otherwise start fresh next time
       roots[p]=nxt; roots[1-p]=null; s=nxt.s;
     }
-    return {winner:s.winner,rounds:s.round,hp:s.hp,samples};
+    return {winner:s.winner,rounds:s.round,hp:s.hp,samples,opening:opening&&opening.join(',')};
   }
   function packSamples(samples,winner){
     const meta=[], parts=[];
@@ -216,7 +223,7 @@ if(isMainThread){
       }
       for(const r of runs){
         const res=r.res, aWinner=res.winner<0?-1:((res.winner===0)!==r.swap?0:1);   // 0 = sides[0] won
-        parentPort.postMessage({type:'result',r:{map:mapName,winner:aWinner,rounds:res.rounds,pw:res.winner}});   // pw: winning player (0 = 青, first in round 1)
+        parentPort.postMessage({type:'result',r:{map:mapName,winner:aWinner,rounds:res.rounds,pw:res.winner,opening:res.opening}});   // pw: winning player (0 = 青, first in round 1)
         if(res.samples.length){ const b=packSamples(res.samples,res.winner); parentPort.postMessage({type:'data',buf:b},[b.buffer]); }
       }
     }
