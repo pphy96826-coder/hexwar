@@ -1,16 +1,18 @@
 # Publishes each newly promoted network to GitHub (code on main, the playable page on gh-pages = GitHub Pages).
 #   python3 train/az/deploy_github.py            (keeps running; checks every few minutes)
 # A generation is promoted by train.py only after beating the previous best (>= 55% over 40 games). Before it goes
-# online it must also not be worse than the online version against the hand-written master: 48 games, network only
-# (no hand-written evaluation mixed in, so the result separates versions), 200 searches per move. At most one push
-# every MIN_GAP seconds. State (online generation and its score) in train/az/out/deploy_state.json.
+# online it must also (1) score >= 50% head to head against the version online now (100 games, network only, 200
+# searches per move, sides alternating, fixed and random maps) and (2) still beat the hand-written master >= 90%
+# (48 games), so a version that only learned to exploit its predecessor cannot slip through. (The earlier rule,
+# "not worse against the master", stopped separating versions once they won 48 of 48.) At most one push every
+# MIN_GAP seconds. State in train/az/out/deploy_state.json.
 import json, os, re, shutil, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(HERE))
 REPO = os.path.join(ROOT, 'hexwar-github'); WEB = os.path.join(HERE, 'web')
 MIN_GAP = 3 * 3600; POLL = 300
 LOG = os.path.join(HERE, 'out', 'deploy_log.txt'); STATE = os.path.join(HERE, 'out', 'deploy_state.json')
-TEST_GAMES = 48
+TEST_GAMES = 48; H2H_GAMES = 100; MASTER_FLOOR = 0.90
 CODE = {   # project file -> repository path (kept in sync on every publish)
     'hexwar_base.html': 'hexwar_base.html',
     **{f'train/az/{f}': f'train/az/{f}' for f in ['train.py', 'model.py', 'selfplay.js', 'game.js', 'mcts.js', 'maps.js', 'human_samples.js',
@@ -65,6 +67,14 @@ def master_score(gen):
     if not m: raise RuntimeError('evaluation failed: ' + (r.stderr or r.stdout)[-300:])
     w, l, d = map(int, m.groups()); return (w + d / 2) / max(1, w + l + d), f'{w}-{l}-{d}'
 
+def head_to_head(gen, online):
+    """gen's score against the online generation, both network only"""
+    r = subprocess.run([sys.executable, os.path.join(HERE, 'h2h.py'), f'gen{gen}.pt', f'gen{online}.pt', str(H2H_GAMES), '200'],
+                       capture_output=True, text=True, cwd=ROOT)
+    m = re.search(r'sims: (\d+)-(\d+)-(\d+)', r.stdout)
+    if not m: raise RuntimeError('head-to-head failed: ' + (r.stderr or r.stdout)[-300:])
+    w, l, d = map(int, m.groups()); return (w + d / 2) / max(1, w + l + d), f'{w}-{l}-{d}'
+
 def load_state():
     return json.load(open(STATE)) if os.path.exists(STATE) else {}
 def save_state(st): json.dump(st, open(STATE, 'w'))
@@ -92,12 +102,14 @@ def main():
         try:
             gen = json.load(open(os.path.join(WEB, 'net_best.json'))).get('gen')
             if gen is not None and gen != st['online_gen'] and str(gen) not in st['tested'] and time.time() - last_push >= MIN_GAP:
-                sc, txt = master_score(gen); st['tested'][str(gen)] = sc; save_state(st)
-                if sc >= st['online_score']:
-                    publish(gen, f'Promoted by training (beat the previous best >= 55% over 40 games) and not worse than the online version against the hand-written master: {txt} ({sc:.0%}) vs {st["online_result"]} ({st["online_score"]:.0%}).')
-                    st.update(online_gen=gen, online_score=sc, online_result=txt); save_state(st); last_push = time.time()
+                on = st['online_gen']
+                hs, htxt = head_to_head(gen, on); ms, mtxt = master_score(gen)
+                st['tested'][str(gen)] = {'h2h': hs, 'master': ms}; save_state(st)
+                if hs >= 0.5 and ms >= MASTER_FLOOR:
+                    publish(gen, f'Promoted by training (beat the previous best >= 55% over 40 games); head to head against the online generation {on}: {htxt} ({hs:.0%}, needs >= 50%); against the hand-written master: {mtxt} ({ms:.0%}, needs >= {MASTER_FLOOR:.0%}).')
+                    st.update(online_gen=gen, online_score=ms, online_result=mtxt); save_state(st); last_push = time.time()
                 else:
-                    log(f'gen {gen} vs master {txt} ({sc:.0%}) is worse than online gen {st["online_gen"]} ({st["online_score"]:.0%}): not published')
+                    log(f'gen {gen}: vs online gen {on} {htxt} ({hs:.0%}), vs master {mtxt} ({ms:.0%}): not published')
         except Exception as e:
             log(f'publish failed: {e}')
         time.sleep(POLL)
